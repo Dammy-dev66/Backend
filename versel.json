@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/services",
+      "dest": "/api/services.js"
+    },
+    {
+      "src": "/team-members",
+      "dest": "/api/team-members.js"
+    },
+    {
+      "src": "/availability",
+      "dest": "/api/availability.js"
+    },
+    {
+      "src": "/checkout",
+      "dest": "/api/checkout.js"
+    }
+  ]
+}
