@@ -1,2 +1,75 @@
-# Backend
-square backend code
+# Finbar Backend
+
+Vercel serverless backend for booking integrations.
+
+## Acuity Package Bookings
+
+The important rule is that the public page must not decide whether a class is package-covered. The front end sends the package/certificate code to this backend, this backend asks Acuity whether the code is valid for the client and appointment type, and only then creates the appointment with the `certificate` field attached.
+
+That keeps the package credit count inside Acuity as the single source of truth.
+
+### Files
+
+- `api/validate-package.js` checks whether a package/certificate can be used for a given appointment type and client email.
+- `api/book-with-package.js` validates the package and creates the Acuity appointment with the package attached.
+- `api/webhooks/acuity.js` accepts Acuity webhook events for audit logging. It is not used as the credit source of truth.
+- `lib/acuity.js` wraps Acuity API calls.
+- `lib/http.js` handles JSON and CORS helpers.
+
+### Vercel Environment Variables
+
+```txt
+ACUITY_USER_ID=your_numeric_acuity_user_id
+ACUITY_API_KEY=your_acuity_api_key
+ALLOWED_ORIGINS=https://your-carrd-site.example,https://your-custom-domain.example
+ALLOW_FULL_PRICE_FALLBACK=false
+```
+
+Rotate the Acuity API key before deployment if it has been pasted into chat or shared anywhere public.
+
+### Front-End Usage
+
+The booking page should call `POST /api/book-with-package` instead of sending a package booking directly from the browser to Acuity.
+
+Example request:
+
+```json
+{
+  "datetime": "2026-09-01T14:00:00+0100",
+  "appointmentTypeID": 123456,
+  "calendarID": 987654,
+  "firstName": "Jane",
+  "lastName": "Parent",
+  "email": "jane@example.com",
+  "phone": "+353...",
+  "certificate": "PACKAGECODE123",
+  "timezone": "Europe/Dublin",
+  "fields": [
+    { "id": 111111, "value": "Student name" }
+  ]
+}
+```
+
+Successful package booking response:
+
+```json
+{
+  "ok": true,
+  "paidByPackage": true,
+  "appointment": {}
+}
+```
+
+If the package is expired, invalid, not valid for that appointment type, or has no remaining uses, the response returns `ok: false` and does not create a package-covered appointment.
+
+### Why This Fixes The Package Bugs
+
+Package limit enforcement happens before appointment creation by calling Acuity's certificate check endpoint. If the pack has no remaining uses, Acuity returns a certificate error and the backend refuses the package booking.
+
+Double-charging is avoided because the appointment is created with Acuity's `certificate` attribute. The appointment is not independently sent into a full-price checkout path after the user selects "Use package".
+
+### Acuity References
+
+- Acuity's appointments API documents booking appointments with coupons/package codes by setting the `certificate` attribute: https://developers.acuityscheduling.com/reference/post-appointments
+- The same Acuity page lists package-related validation errors including `certificate_uses`, `expired_certificate`, and `invalid_certificate_type`.
+- Acuity certificate validation uses `/certificates/check` with `certificate`, `appointmentTypeID`, and optionally `email`.
