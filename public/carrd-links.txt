@@ -1,0 +1,14 @@
+Finbar Carrd helper links
+
+Booking page:
+https://backend-ymlj.vercel.app/
+
+Carrd redirect helper:
+https://backend-ymlj.vercel.app/lesson-dropdown.js
+
+Return bridge:
+https://backend-ymlj.vercel.app/return.html
+
+Suggested Carrd use:
+<script src="https://backend-ymlj.vercel.app/lesson-dropdown.js"></script>
+<a data-finbar-booking data-subject="AP Psychology" data-format="oneToOne" data-tier="trial">Book now</a>

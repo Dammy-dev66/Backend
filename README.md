@@ -106,3 +106,9 @@ Double-charging is avoided because the appointment is created with Acuity's `cer
 - Acuity's appointments API documents booking appointments with coupons and package certificates by setting the `certificate` attribute: https://developers.acuityscheduling.com/reference/post-appointments
 - The same Acuity page lists package-related validation errors including `certificate_uses`, `expired_certificate`, and `invalid_certificate_type`.
 - Acuity certificate validation uses `/certificates/check` with `certificate`, `appointmentTypeID`, and optionally `email`.
+
+### Carrd Script Links
+
+- Booking slider / modal behavior: https://backend-ymlj.vercel.app/lesson-dropdown.js
+- Booking page: https://backend-ymlj.vercel.app/
+- Return bridge: https://backend-ymlj.vercel.app/return.html
