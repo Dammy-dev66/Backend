@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Book Lessons - Finbar B. Elite Tutoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page">
+    <header class="brand">
+      <div class="brand-mark">FB</div>
+      <div>
+        <div class="brand-name">Finbar B.</div>
+        <div class="brand-kicker">Elite Tutoring</div>
+      </div>
+    </header>
+
+    <nav class="progress" aria-label="Booking progress">
+      <div class="progress-step active" data-step="1"><span>01</span> Choose</div>
+      <div class="progress-step" data-step="2"><span>02</span> Time</div>
+      <div class="progress-step" data-step="3"><span>03</span> Details</div>
+      <div class="progress-step" data-step="4"><span>04</span> Finish</div>
+    </nav>
+
+    <main class="panel" id="app">
+      <section class="step" id="step1">
+        <p class="eyebrow">Book A Class</p>
+        <h1>Choose your lesson.</h1>
+        <p class="lede">Trial, single lesson, and package bookings all start here.</p>
+
+        <label class="field">
+          <span>Subject</span>
+          <select id="subjectSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>Lesson format</span>
+          <select id="formatSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>Booking type</span>
+          <select id="tierSelect"></select>
+        </label>
+
+        <div class="summary" id="choiceSummary"></div>
+
+        <div class="package-choice hidden" id="packageChoice">
+          <button class="choice-card active" id="redeemPackageBtn" type="button">
+            <strong>I already have a package code</strong>
+            <span>Redeem sessions from a package you have bought.</span>
+          </button>
+          <button class="choice-card" id="buyPackageBtn" type="button">
+            <strong>I need to buy this package</strong>
+            <span>Pay securely in Acuity, then return here to book.</span>
+          </button>
+        </div>
+
+        <div id="certificateFields">
+          <label class="field">
+            <span>Package code</span>
+            <input type="text" id="certificateInput" placeholder="e.g. 6A070B7E" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Email used at purchase</span>
+            <input type="email" id="packageEmailInput" placeholder="you@example.com" autocomplete="email">
+          </label>
+        </div>
+
+        <button class="btn-primary" id="continueChoiceBtn" type="button">Continue</button>
+        <p class="field-error" id="step1Error"></p>
+      </section>
+
+      <section class="step hidden" id="step2">
+        <p class="eyebrow" id="timeEyebrow">Pick A Time</p>
+        <h1 id="bookingTitle">Your lesson</h1>
+        <div class="balance-pill hidden" id="balancePill">
+          <span><strong id="selectedCount">0</strong> of <span id="totalCount">0</span> selected</span>
+          <div class="balance-track"><div class="balance-fill" id="balanceFill"></div></div>
+        </div>
+
+        <div class="month-nav">
+          <button id="prevMonth" aria-label="Previous month" type="button">&lt;</button>
+          <span id="monthLabel">-</span>
+          <button id="nextMonth" aria-label="Next month" type="button">&gt;</button>
+        </div>
+
+        <div class="date-grid" id="dateGrid"></div>
+        <div class="time-panel hidden" id="timePanel">
+          <p class="time-panel-label" id="timePanelLabel"></p>
+          <div class="time-grid" id="timeGrid"></div>
+        </div>
+        <ul class="selected-list" id="selectedList"></ul>
+
+        <button class="btn-secondary" id="backToChoiceBtn" type="button">Back</button>
+        <button class="btn-primary" id="toStep3Btn" type="button" disabled>Continue</button>
+        <p class="field-error" id="step2Error"></p>
+      </section>
+
+      <section class="step hidden" id="step3">
+        <p class="eyebrow">Student Details</p>
+        <h1>Confirm details.</h1>
+        <p class="lede" id="detailsLead"></p>
+
+        <label class="field"><span>Parent / guardian first name</span><input id="firstName" type="text" autocomplete="given-name"></label>
+        <label class="field"><span>Parent / guardian last name</span><input id="lastName" type="text" autocomplete="family-name"></label>
+        <label class="field"><span>Email</span><input id="email" type="email" autocomplete="email"></label>
+        <label class="field"><span>Phone</span><input id="phone" type="tel" autocomplete="tel"></label>
+        <label class="field"><span>Student name</span><input id="studentName" type="text"></label>
+        <label class="field"><span>Notes or learning goals</span><textarea id="notes" rows="3"></textarea></label>
+
+        <button class="btn-secondary" id="backToTimeBtn" type="button">Back</button>
+        <button class="btn-primary" id="finishBtn" type="button">Continue to secure checkout</button>
+        <p class="field-error" id="step3Error"></p>
+      </section>
+
+      <section class="step hidden" id="step4">
+        <p class="eyebrow">Done</p>
+        <h1 id="finishTitle">Booking started.</h1>
+        <p class="lede" id="finishMessage"></p>
+        <ul class="confirmed-list" id="confirmedList"></ul>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

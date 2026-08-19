@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Return To Booking - Finbar B. Elite Tutoring</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page">
+    <header class="brand">
+      <div class="brand-mark">FB</div>
+      <div>
+        <div class="brand-name">Finbar B.</div>
+        <div class="brand-kicker">Elite Tutoring</div>
+      </div>
+    </header>
+    <main class="panel">
+      <p class="eyebrow">Package Purchased</p>
+      <h1>Book your package sessions.</h1>
+      <p class="lede">Use the package code from your Acuity confirmation page or receipt email. The booking page will verify the code and cap the number of sessions you can choose.</p>
+      <a class="btn-link" id="bookLink" href="/">Continue to booking</a>
+    </main>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const next = new URL("/", location.origin);
+    ["subject", "format", "tier", "appointmentTypeID"].forEach((key) => {
+      if (params.has(key)) next.searchParams.set(key, params.get(key));
+    });
+    document.getElementById("bookLink").href = next.toString();
+  </script>
+</body>
+</html>
