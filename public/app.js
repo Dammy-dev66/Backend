@@ -49,6 +49,8 @@ const state = {
   productID: null,
   certificate: "",
   packageEmail: "",
+  returnSource: "",
+  returnOrderID: "",
   remaining: 1,
   selected: [],
   currentMonth: new Date(),
@@ -90,6 +92,14 @@ function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function savedSelection() {
+  try {
+    return JSON.parse(sessionStorage.getItem("finbarReturnSelection") || "{}");
+  } catch {
+    return {};
+  }
+}
+
 async function api(path, opts = {}) {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -97,6 +107,32 @@ async function api(path, opts = {}) {
   });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, data };
+}
+
+async function resolvePackageEntitlement({ email, orderID, productID }) {
+  const { ok, data } = await api("/api/resolve-package", {
+    method: "POST",
+    body: JSON.stringify({
+      email,
+      appointmentTypeID: state.appointmentTypeID,
+      orderID,
+      productID
+    })
+  });
+
+  if (!ok || !data.ok || !data.packageValid) {
+    throw new Error(data.error || "We could not find an active package for that email.");
+  }
+
+  const remaining = data.certificate?.remainingCounts?.[String(state.appointmentTypeID)]
+    ?? data.certificate?.remaining
+    ?? data.remaining
+    ?? 1;
+
+  return {
+    certificate: data.certificate?.code || data.certificate?.certificate || data.certificate?.packageCode || data.certificate,
+    remaining
+  };
 }
 
 function setStep(n) {
@@ -121,10 +157,17 @@ function populateSelectors() {
   ).join("");
 
   const params = new URLSearchParams(location.search);
-  const subjectName = params.get("subject");
-  const formatKey = params.get("format");
-  const tierKey = params.get("tier");
-  const appointmentTypeID = Number(params.get("appointmentTypeID"));
+  const saved = savedSelection();
+  const subjectName = params.get("subject") || saved.subject;
+  const formatKey = params.get("format") || saved.format;
+  const tierKey = params.get("tier") || saved.tier;
+  const appointmentTypeID = Number(params.get("appointmentTypeID") || saved.appointmentTypeID);
+  const source = params.get("source") || "";
+  const email = params.get("email") || saved.packageEmail || "";
+  const orderID = params.get("orderID") || "";
+
+  state.returnSource = source;
+  state.returnOrderID = orderID;
 
   if (subjectName) {
     const index = CLASS_DATA.findIndex((item) => item.name === subjectName);
@@ -152,6 +195,22 @@ function populateSelectors() {
   $("formatSelect").value = state.formatKey;
   $("tierSelect").value = state.tierKey;
   updateChoiceUI();
+
+  if (email) {
+    state.packageEmail = email;
+    $("packageEmailInput").value = email;
+  }
+
+  if (saved.packageEmail && !$("packageEmailInput").value) {
+    $("packageEmailInput").value = saved.packageEmail;
+  }
+
+  if (source === "acuity" && selectedTier().needsPackage) {
+    setPackageMode("redeem");
+    queueMicrotask(() => resumeReturnedPackage());
+  } else {
+    setPackageMode(state.packageMode);
+  }
 }
 
 function updateChoiceUI() {
@@ -165,7 +224,7 @@ function updateChoiceUI() {
   const price = format.price[tier.key];
   $("choiceSummary").innerHTML = `<strong>${selectedSubject().name}</strong><br>${format.label} - ${tier.label} - ${money(price)}`;
   $("packageChoice").classList.toggle("hidden", !tier.needsPackage);
-  $("certificateFields").classList.toggle("hidden", !tier.needsPackage || state.packageMode !== "redeem");
+  $("certificateFields").classList.toggle("hidden", !tier.needsPackage || state.packageMode === "buy");
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
     ? "Buy package securely"
     : "Continue";
@@ -194,6 +253,45 @@ function packagePurchaseUrl() {
   return url.toString();
 }
 
+async function resumeReturnedPackage() {
+  const params = new URLSearchParams(location.search);
+  const email = state.packageEmail || params.get("email") || "";
+  const orderID = params.get("orderID") || state.returnOrderID || "";
+
+  if (!email) {
+    return;
+  }
+
+  $("step1Error").textContent = "";
+  $("continueChoiceBtn").disabled = true;
+  $("continueChoiceBtn").textContent = "Locating your package...";
+
+  try {
+    const resolved = await resolvePackageEntitlement({
+      email,
+      orderID,
+      productID: state.productID
+    });
+    state.packageMode = "redeem";
+    setPackageMode("redeem");
+    state.packageEmail = email;
+    state.certificate = resolved.certificate;
+    state.remaining = resolved.remaining || 1;
+    $("email").value = email;
+    $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
+    $("timeEyebrow").textContent = "Redeem Sessions";
+    $("balancePill").classList.remove("hidden");
+    updateSelectedUI();
+    setStep(2);
+    loadMonth();
+  } catch (error) {
+    $("step1Error").textContent = error.message;
+  } finally {
+    $("continueChoiceBtn").disabled = false;
+    updateChoiceUI();
+  }
+}
+
 async function continueFromChoice() {
   $("step1Error").textContent = "";
   const tier = selectedTier();
@@ -203,7 +301,8 @@ async function continueFromChoice() {
       subject: selectedSubject().name,
       format: state.formatKey,
       tier: state.tierKey,
-      appointmentTypeID: state.appointmentTypeID
+      appointmentTypeID: state.appointmentTypeID,
+      packageEmail: $("packageEmailInput").value.trim()
     }));
     location.href = packagePurchaseUrl();
     return;
@@ -213,38 +312,31 @@ async function continueFromChoice() {
   state.remaining = tier.sessions;
 
   if (tier.needsPackage) {
-    state.certificate = $("certificateInput").value.trim();
     state.packageEmail = $("packageEmailInput").value.trim();
-    if (!state.certificate || !state.packageEmail) {
-      $("step1Error").textContent = "Enter your package code and purchase email.";
+    if (!state.packageEmail) {
+      $("step1Error").textContent = "Enter the email used for your package.";
       return;
     }
 
     $("continueChoiceBtn").disabled = true;
     $("continueChoiceBtn").textContent = "Checking package...";
-    const { ok, data } = await api("/api/validate-package", {
-      method: "POST",
-      body: JSON.stringify({
-        certificate: state.certificate,
+    try {
+      const resolved = await resolvePackageEntitlement({
         email: state.packageEmail,
-        appointmentTypeID: state.appointmentTypeID
-      })
-    });
+        orderID: state.returnOrderID,
+        productID: state.productID
+      });
+      state.certificate = resolved.certificate;
+      state.remaining = resolved.remaining || 1;
+      $("email").value = state.packageEmail;
+    } catch (error) {
+      $("step1Error").textContent = error.message;
+      $("continueChoiceBtn").disabled = false;
+      updateChoiceUI();
+      return;
+    }
     $("continueChoiceBtn").disabled = false;
     updateChoiceUI();
-
-    if (!ok || !data.ok || !data.packageValid) {
-      $("step1Error").textContent = data.error || "That package code could not be verified.";
-      return;
-    }
-
-    const remaining = data.certificate?.remainingCounts?.[String(state.appointmentTypeID)];
-    if (!remaining || remaining <= 0) {
-      $("step1Error").textContent = "This package has no sessions remaining.";
-      return;
-    }
-
-    state.remaining = remaining;
   }
 
   $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
@@ -406,7 +498,9 @@ async function finishBooking() {
         lastName: details.lastName,
         email: state.packageEmail || details.email,
         phone: details.phone,
-        certificate: state.certificate,
+        certificate: state.certificate || undefined,
+        orderID: state.returnOrderID || undefined,
+        productID: state.productID || undefined,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         notes: details.notes,
         fields: details.studentName ? [{ id: STUDENT_NAME_FIELD_ID, value: details.studentName }] : []

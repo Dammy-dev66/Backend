@@ -1,7 +1,7 @@
-const { checkCertificate, createAppointment } = require("../lib/acuity");
+const { checkCertificate, createAppointment, resolvePackageCertificate } = require("../lib/acuity");
 const { handleOptions, readJson, sendJson } = require("../lib/http");
 
-const REQUIRED_STRING_FIELDS = ["datetime", "firstName", "lastName", "email", "certificate"];
+const REQUIRED_STRING_FIELDS = ["datetime", "firstName", "lastName", "email"];
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -40,7 +40,9 @@ function validateBooking(body) {
     lastName: cleanString(body.lastName),
     email: cleanString(body.email),
     phone: cleanString(body.phone) || undefined,
-    certificate: cleanString(body.certificate),
+    certificate: cleanString(body.certificate) || undefined,
+    orderID: cleanString(body.orderID) || undefined,
+    productID: cleanString(body.productID) || undefined,
     fields: Array.isArray(body.fields) ? body.fields : undefined,
     notes: cleanString(body.notes) || undefined,
     timezone: cleanString(body.timezone) || undefined
@@ -56,14 +58,26 @@ module.exports = async function handler(req, res) {
 
   try {
     const booking = validateBooking(await readJson(req));
+    const resolved = booking.certificate
+      ? { certificate: booking.certificate }
+      : await resolvePackageCertificate({
+        email: booking.email,
+        appointmentTypeID: booking.appointmentTypeID,
+        orderID: booking.orderID,
+        productID: booking.productID
+      });
+    const certificate = resolved.certificate;
 
     await checkCertificate({
-      certificate: booking.certificate,
+      certificate,
       appointmentTypeID: booking.appointmentTypeID,
       email: booking.email
     });
 
-    const appointment = await createAppointment(booking);
+    const appointment = await createAppointment({
+      ...booking,
+      certificate
+    });
 
     return sendJson(req, res, 201, {
       ok: true,

@@ -121,6 +121,13 @@ h1 {
   font-weight: 700;
 }
 
+.field-hint {
+  margin: -6px 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .field input,
 .field select,
 .field textarea {

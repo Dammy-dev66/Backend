@@ -14,9 +14,9 @@ That keeps the package credit count inside Acuity as the single source of truth.
 
 ### Files
 
-- `api/validate-package.js` checks whether a package/certificate can be used for a given appointment type and client email.
-- `api/book-with-package.js` validates the package and creates the Acuity appointment with the package attached.
-- `api/webhooks/acuity.js` accepts Acuity webhook events for audit logging. It is not used as the credit source of truth.
+- `api/resolve-package.js` asks Acuity for the active package tied to a client email, order, or product and resolves the certificate behind the scenes.
+- `api/book-with-package.js` resolves the package if needed, validates it, and creates the Acuity appointment with the certificate attached.
+- `api/webhooks/acuity.js` accepts Acuity webhook events for audit logging and signature verification.
 - `api/availability-dates.js` proxies Acuity availability dates to the custom frontend.
 - `api/availability-times.js` proxies Acuity availability times to the custom frontend.
 - `public/` contains the uniform booking frontend for trial, single, and package flows.
@@ -28,24 +28,26 @@ That keeps the package credit count inside Acuity as the single source of truth.
 1. Customer starts on the custom page at `https://backend-ymlj.vercel.app/`.
 2. Customer chooses subject, lesson format, and booking type.
 3. Trial or single lesson customers pick one slot in the custom UI, enter details, then go to Acuity's secure checkout with the selected slot prefilled.
-4. Package customers who already have a code enter it in the custom UI. The backend validates the package and books only up to the remaining Acuity credit balance.
-5. Package customers who need to buy first are sent to the exact Acuity package product, then returned to `https://backend-ymlj.vercel.app/return.html` to enter the package code from Acuity and book their sessions.
+4. Package customers who already own a package enter the purchase email only. The backend asks Acuity for the valid certificate tied to that email and appointment type, then books only up to the remaining credit balance.
+5. Package customers who need to buy first are sent to the exact Acuity package product, then returned to `https://backend-ymlj.vercel.app/return.html`, which immediately bounces them back into the custom booking flow with the subject and lesson type restored.
 
 ### Package Purchase Redirect
 
-The custom frontend adds a `returnUrl` parameter to package purchase links, but Acuity may ignore that on some purchase screens. The reliable fix is Acuity's custom conversion tracking code. Paste this into **Acuity -> Integrations -> Custom conversion tracking**:
+The custom frontend still includes a return URL for backup, but the reliable fix is Acuity's custom conversion tracking code. Paste this into **Acuity -> Integrations -> Custom conversion tracking**:
 
 ```html
 <script>
   setTimeout(function () {
     var url = new URL("https://backend-ymlj.vercel.app/return.html");
     url.searchParams.set("type", "%type%");
+    url.searchParams.set("email", "%email%");
+    url.searchParams.set("orderID", "%id%");
     top.location.replace(url.toString());
   }, 1000);
 </script>
 ```
 
-The redirect can bring the customer back to the custom flow. It cannot automatically fill the package code unless Acuity exposes the code on the confirmation page. The return page now auto-continues back into the booking UI after a short pause, so the client lands back where they need to be without another click.
+The redirect brings the customer back to the custom flow without asking for a code. The return page auto-continues into the booking UI after a short pause, and the booking backend resolves the package certificate from Acuity using the client's email and order data.
 
 ### Vercel Environment Variables
 
@@ -73,7 +75,7 @@ Example request:
   "lastName": "Parent",
   "email": "jane@example.com",
   "phone": "+353...",
-  "certificate": "PACKAGECODE123",
+  "orderID": "123456",
   "timezone": "Europe/Dublin",
   "fields": [
     { "id": 111111, "value": "Student name" }
@@ -95,12 +97,12 @@ If the package is expired, invalid, not valid for that appointment type, or has 
 
 ### Why This Fixes The Package Bugs
 
-Package limit enforcement happens before appointment creation by calling Acuity's certificate check endpoint. If the pack has no remaining uses, Acuity returns a certificate error and the backend refuses the package booking.
+Package limit enforcement happens before appointment creation by resolving the certificate from Acuity and then calling Acuity's certificate check endpoint. If the pack has no remaining uses, Acuity returns a certificate error and the backend refuses the package booking.
 
 Double-charging is avoided because the appointment is created with Acuity's `certificate` attribute. The appointment is not independently sent into a full-price checkout path after the user selects "Use package".
 
 ### Acuity References
 
-- Acuity's appointments API documents booking appointments with coupons/package codes by setting the `certificate` attribute: https://developers.acuityscheduling.com/reference/post-appointments
+- Acuity's appointments API documents booking appointments with coupons and package certificates by setting the `certificate` attribute: https://developers.acuityscheduling.com/reference/post-appointments
 - The same Acuity page lists package-related validation errors including `certificate_uses`, `expired_certificate`, and `invalid_certificate_type`.
 - Acuity certificate validation uses `/certificates/check` with `certificate`, `appointmentTypeID`, and optionally `email`.

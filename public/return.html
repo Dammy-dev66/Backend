@@ -15,24 +15,39 @@
         <div class="brand-kicker">Elite Tutoring</div>
       </div>
     </header>
-  <main class="panel">
+    <main class="panel">
       <p class="eyebrow">Package Purchased</p>
-      <h1>Book your package sessions.</h1>
-      <p class="lede">Use the package code from your Acuity confirmation page or receipt email. The booking page will verify the code and cap the number of sessions you can choose.</p>
+      <h1>Returning to booking.</h1>
+      <p class="lede">We are sending you back to the custom booking page now so you can pick your time slots.</p>
       <a class="btn-link" id="bookLink" href="/">Continue to booking</a>
     </main>
   </div>
   <script>
     const params = new URLSearchParams(location.search);
+    const saved = (() => {
+      try {
+        return JSON.parse(sessionStorage.getItem("finbarReturnSelection") || "{}");
+      } catch {
+        return {};
+      }
+    })();
     const next = new URL("/", location.origin);
-    ["subject", "format", "tier", "appointmentTypeID"].forEach((key) => {
+    ["subject", "format", "tier", "appointmentTypeID", "email", "orderID"].forEach((key) => {
       if (params.has(key)) next.searchParams.set(key, params.get(key));
+    });
+    if (params.get("source")) {
+      next.searchParams.set("source", params.get("source"));
+    } else {
+      next.searchParams.set("source", "acuity");
+    }
+    ["subject", "format", "tier", "appointmentTypeID", "packageEmail"].forEach((key) => {
+      if (!next.searchParams.has(key) && saved[key]) next.searchParams.set(key, saved[key]);
     });
     document.getElementById("bookLink").href = next.toString();
 
     setTimeout(() => {
-      location.href = next.toString();
-    }, 1200);
+      location.replace(next.toString());
+    }, 350);
   </script>
 </body>
 </html>

@@ -51,8 +51,8 @@
 
         <div class="package-choice hidden" id="packageChoice">
           <button class="choice-card active" id="redeemPackageBtn" type="button">
-            <strong>I already have a package code</strong>
-            <span>Redeem sessions from a package you have bought.</span>
+            <strong>I already have a package</strong>
+            <span>We’ll find it automatically from your email.</span>
           </button>
           <button class="choice-card" id="buyPackageBtn" type="button">
             <strong>I need to buy this package</strong>
@@ -62,13 +62,10 @@
 
         <div id="certificateFields">
           <label class="field">
-            <span>Package code</span>
-            <input type="text" id="certificateInput" placeholder="e.g. 6A070B7E" autocomplete="off">
-          </label>
-          <label class="field">
-            <span>Email used at purchase</span>
+            <span>Email used for the package</span>
             <input type="email" id="packageEmailInput" placeholder="you@example.com" autocomplete="email">
           </label>
+          <p class="field-hint">We’ll look up your package automatically. No code is needed.</p>
         </div>
 
         <button class="btn-primary" id="continueChoiceBtn" type="button">Continue</button>
