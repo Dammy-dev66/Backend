@@ -15,7 +15,7 @@
         <div class="brand-kicker">Elite Tutoring</div>
       </div>
     </header>
-    <main class="panel">
+  <main class="panel">
       <p class="eyebrow">Package Purchased</p>
       <h1>Book your package sessions.</h1>
       <p class="lede">Use the package code from your Acuity confirmation page or receipt email. The booking page will verify the code and cap the number of sessions you can choose.</p>
@@ -29,6 +29,10 @@
       if (params.has(key)) next.searchParams.set(key, params.get(key));
     });
     document.getElementById("bookLink").href = next.toString();
+
+    setTimeout(() => {
+      location.href = next.toString();
+    }, 1200);
   </script>
 </body>
 </html>

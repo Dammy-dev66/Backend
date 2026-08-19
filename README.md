@@ -33,17 +33,19 @@ That keeps the package credit count inside Acuity as the single source of truth.
 
 ### Package Purchase Redirect
 
-The custom frontend adds a `returnUrl` parameter to package purchase links, but Acuity may ignore that on some purchase screens. To force the return, add this to Acuity's custom conversion tracking / confirmation script area:
+The custom frontend adds a `returnUrl` parameter to package purchase links, but Acuity may ignore that on some purchase screens. The reliable fix is Acuity's custom conversion tracking code. Paste this into **Acuity -> Integrations -> Custom conversion tracking**:
 
 ```html
 <script>
   setTimeout(function () {
-    window.location.href = "https://backend-ymlj.vercel.app/return.html";
-  }, 1200);
+    var url = new URL("https://backend-ymlj.vercel.app/return.html");
+    url.searchParams.set("type", "%type%");
+    top.location.replace(url.toString());
+  }, 1000);
 </script>
 ```
 
-The redirect can bring the customer back to the custom flow. It cannot automatically fill the package code unless Acuity exposes the code on the confirmation page. The return page asks the customer to use the code shown by Acuity or sent in the receipt email.
+The redirect can bring the customer back to the custom flow. It cannot automatically fill the package code unless Acuity exposes the code on the confirmation page. The return page now auto-continues back into the booking UI after a short pause, so the client lands back where they need to be without another click.
 
 ### Vercel Environment Variables
 
