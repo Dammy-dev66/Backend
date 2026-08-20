@@ -107,12 +107,13 @@ function storedBackUrl() {
 }
 
 function openInNewTab(url) {
-  const tab = window.open(url, "_blank");
-  if (tab) {
-    tab.focus();
-  } else {
-    location.href = url;
-  }
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 async function api(path, opts = {}) {
