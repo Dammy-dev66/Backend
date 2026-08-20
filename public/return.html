@@ -49,21 +49,35 @@
     }
     document.getElementById("bookLink").href = next.toString();
 
-    setTimeout(() => {
-      localStorage.setItem("finbarReturnTarget", next.toString());
-      if (window.opener && !window.opener.closed) {
+    const meta = document.createElement("meta");
+    meta.httpEquiv = "refresh";
+    meta.content = `0;url=${next.toString()}`;
+    document.head.appendChild(meta);
+
+    localStorage.setItem("finbarReturnTarget", next.toString());
+
+    if (window.opener && !window.opener.closed) {
+      try {
         window.opener.location.replace(next.toString());
         window.opener.focus();
-      } else {
-        location.replace(next.toString());
+      } catch (error) {
+        // The opener path is best-effort only.
       }
+    }
 
+    try {
+      window.location.replace(next.toString());
+    } catch (error) {
+      // Meta refresh is the fallback if direct navigation is blocked.
+    }
+
+    setTimeout(() => {
       try {
         window.close();
       } catch (error) {
-        // If the browser refuses to close the tab, keep the custom booking page visible.
+        // If the browser refuses to close the tab, the page should already be on the custom booking route.
       }
-    }, 350);
+    }, 0);
   </script>
 </body>
 </html>

@@ -47,6 +47,10 @@ The custom frontend still includes a return URL for backup, but the reliable fix
 </script>
 ```
 
+If you want the exact paste-ready version without the markdown wrapper, use:
+
+- `public/acuity-custom-conversion-snippet.txt`
+
 The redirect brings the customer back to the custom flow without asking for a code. The return page auto-continues into the booking UI after a short pause, and the booking backend resolves the package certificate from Acuity using the client's email and order data.
 
 If the package purchase was opened in a new tab, the return bridge will also try to close the Acuity tab after sending the student back to the custom booking page. If the browser refuses to close it, the custom page still receives the return target and refreshes itself into the booking flow.

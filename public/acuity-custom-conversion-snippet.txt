@@ -1,0 +1,18 @@
+<script>
+  (function () {
+    var url = new URL("https://backend-ymlj.vercel.app/return.html");
+    url.searchParams.set("type", "%type%");
+    url.searchParams.set("email", "%email%");
+    url.searchParams.set("orderID", "%id%");
+
+    try {
+      if (window.top && window.top.location) {
+        window.top.location.replace(url.toString());
+      } else {
+        window.location.replace(url.toString());
+      }
+    } catch (error) {
+      window.location.replace(url.toString());
+    }
+  })();
+</script>
