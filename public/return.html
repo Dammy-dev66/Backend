@@ -50,13 +50,19 @@
     document.getElementById("bookLink").href = next.toString();
 
     setTimeout(() => {
+      localStorage.setItem("finbarReturnTarget", next.toString());
       if (window.opener && !window.opener.closed) {
         window.opener.location.replace(next.toString());
-        window.close();
-        return;
+        window.opener.focus();
+      } else {
+        location.replace(next.toString());
       }
 
-      location.replace(next.toString());
+      try {
+        window.close();
+      } catch (error) {
+        // If the browser refuses to close the tab, keep the custom booking page visible.
+      }
     }, 350);
   </script>
 </body>

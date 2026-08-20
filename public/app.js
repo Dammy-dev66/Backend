@@ -106,6 +106,20 @@ function storedBackUrl() {
   return localStorage.getItem("finbarBackUrl") || "";
 }
 
+function clearReturnTarget() {
+  localStorage.removeItem("finbarReturnTarget");
+}
+
+function handleReturnTarget(target) {
+  if (!target || target === location.href) {
+    clearReturnTarget();
+    return;
+  }
+
+  clearReturnTarget();
+  location.replace(target);
+}
+
 function openInNewTab(url) {
   const link = document.createElement("a");
   link.href = url;
@@ -205,6 +219,11 @@ function populateSelectors() {
   state.backUrl = backUrl;
   if (backUrl) {
     localStorage.setItem("finbarBackUrl", backUrl);
+  }
+
+  const returnTarget = localStorage.getItem("finbarReturnTarget");
+  if (returnTarget) {
+    handleReturnTarget(returnTarget);
   }
 
   if (subjectName) {
@@ -613,3 +632,9 @@ $("nextMonth").addEventListener("click", () => {
 
 populateSelectors();
 setStep(1);
+
+window.addEventListener("storage", (event) => {
+  if (event.key === "finbarReturnTarget" && event.newValue) {
+    handleReturnTarget(event.newValue);
+  }
+});
