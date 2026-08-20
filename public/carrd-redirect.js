@@ -17,6 +17,7 @@
     });
 
     url.searchParams.set("source", "carrd");
+    url.searchParams.set("backUrl", location.href);
     return url.toString();
   }
 
@@ -33,7 +34,12 @@
       }
 
       event.preventDefault();
-      location.href = target;
+      const tab = window.open(target, "_blank");
+      if (tab) {
+        tab.focus();
+      } else {
+        location.href = target;
+      }
     });
   }
 

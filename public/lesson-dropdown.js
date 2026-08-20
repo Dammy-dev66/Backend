@@ -58,6 +58,15 @@
   var cancelBtn = overlay ? overlay.querySelector(".fb-book-modal-cancel") : null;
   var currentSubject = null;
 
+  function openInNewTab(url) {
+    var tab = window.open(url, "_blank");
+    if (tab) {
+      tab.focus();
+    } else {
+      window.location.href = url;
+    }
+  }
+
   function openModal(subject) {
     currentSubject = subject;
     if (subjectHeading) {
@@ -111,7 +120,9 @@
         var entry = bookingLinks[currentSubject];
         var url = entry ? entry[type + ":" + size] : null;
         if (url) {
-          window.location.href = url;
+          var target = new URL(url);
+          target.searchParams.set("backUrl", window.location.href);
+          openInNewTab(target.toString());
         }
         closeModal();
       });

@@ -9,7 +9,7 @@
 <body>
   <div class="page">
     <header class="brand">
-      <div class="brand-mark">FB</div>
+      <img class="brand-mark" src="https://i.imgur.com/HWaJZhQ.png" alt="Finbar B. Elite Tutoring">
       <div>
         <div class="brand-name">Finbar B.</div>
         <div class="brand-kicker">Elite Tutoring</div>
@@ -31,8 +31,9 @@
         return {};
       }
     })();
+    const storedBackUrl = localStorage.getItem("finbarBackUrl") || "";
     const next = new URL("/", location.origin);
-    ["subject", "format", "tier", "appointmentTypeID", "email", "orderID"].forEach((key) => {
+    ["subject", "format", "tier", "appointmentTypeID", "email", "orderID", "backUrl"].forEach((key) => {
       if (params.has(key)) next.searchParams.set(key, params.get(key));
     });
     if (params.get("source")) {
@@ -40,12 +41,21 @@
     } else {
       next.searchParams.set("source", "acuity");
     }
-    ["subject", "format", "tier", "appointmentTypeID", "packageEmail"].forEach((key) => {
+    ["subject", "format", "tier", "appointmentTypeID", "packageEmail", "backUrl"].forEach((key) => {
       if (!next.searchParams.has(key) && saved[key]) next.searchParams.set(key, saved[key]);
     });
+    if (!next.searchParams.has("backUrl") && storedBackUrl) {
+      next.searchParams.set("backUrl", storedBackUrl);
+    }
     document.getElementById("bookLink").href = next.toString();
 
     setTimeout(() => {
+      if (window.opener && !window.opener.closed) {
+        window.opener.location.replace(next.toString());
+        window.close();
+        return;
+      }
+
       location.replace(next.toString());
     }, 350);
   </script>

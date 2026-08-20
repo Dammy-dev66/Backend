@@ -49,10 +49,12 @@ const state = {
   productID: null,
   certificate: "",
   packageEmail: "",
+  backUrl: "",
   returnSource: "",
   returnOrderID: "",
   remaining: 1,
   selected: [],
+  scheduleData: [],
   currentMonth: new Date(),
   activeDate: null
 };
@@ -97,6 +99,19 @@ function savedSelection() {
     return JSON.parse(sessionStorage.getItem("finbarReturnSelection") || "{}");
   } catch {
     return {};
+  }
+}
+
+function storedBackUrl() {
+  return localStorage.getItem("finbarBackUrl") || "";
+}
+
+function openInNewTab(url) {
+  const tab = window.open(url, "_blank");
+  if (tab) {
+    tab.focus();
+  } else {
+    location.href = url;
   }
 }
 
@@ -145,6 +160,23 @@ function setStep(n) {
   });
 }
 
+function syncBackLinks() {
+  const backLink = $("backToCarrdLink");
+  const bridge = $("bridgeLinks");
+  if (!backLink || !bridge) {
+    return;
+  }
+
+  if (state.backUrl) {
+    backLink.href = state.backUrl;
+    backLink.classList.remove("hidden");
+    bridge.classList.remove("hidden");
+  } else {
+    backLink.classList.add("hidden");
+    bridge.classList.add("hidden");
+  }
+}
+
 function populateSelectors() {
   $("subjectSelect").innerHTML = CLASS_DATA.map((item, index) =>
     `<option value="${index}">${item.name}</option>`
@@ -165,9 +197,14 @@ function populateSelectors() {
   const source = params.get("source") || "";
   const email = params.get("email") || saved.packageEmail || "";
   const orderID = params.get("orderID") || "";
+  const backUrl = params.get("backUrl") || saved.backUrl || storedBackUrl() || "";
 
   state.returnSource = source;
   state.returnOrderID = orderID;
+  state.backUrl = backUrl;
+  if (backUrl) {
+    localStorage.setItem("finbarBackUrl", backUrl);
+  }
 
   if (subjectName) {
     const index = CLASS_DATA.findIndex((item) => item.name === subjectName);
@@ -204,6 +241,8 @@ function populateSelectors() {
   if (saved.packageEmail && !$("packageEmailInput").value) {
     $("packageEmailInput").value = saved.packageEmail;
   }
+
+  syncBackLinks();
 
   if (source === "acuity" && selectedTier().needsPackage) {
     setPackageMode("redeem");
@@ -243,6 +282,9 @@ function packagePurchaseUrl() {
   returnUrl.searchParams.set("format", state.formatKey);
   returnUrl.searchParams.set("tier", state.tierKey);
   returnUrl.searchParams.set("appointmentTypeID", String(state.appointmentTypeID));
+  if (state.backUrl) {
+    returnUrl.searchParams.set("backUrl", state.backUrl);
+  }
 
   const url = new URL("https://app.acuityscheduling.com/catalog.php");
   url.searchParams.set("owner", OWNER_ID);
@@ -302,9 +344,10 @@ async function continueFromChoice() {
       format: state.formatKey,
       tier: state.tierKey,
       appointmentTypeID: state.appointmentTypeID,
-      packageEmail: $("packageEmailInput").value.trim()
+      packageEmail: $("packageEmailInput").value.trim(),
+      backUrl: state.backUrl
     }));
-    location.href = packagePurchaseUrl();
+    openInNewTab(packagePurchaseUrl());
     return;
   }
 
@@ -349,8 +392,7 @@ async function continueFromChoice() {
 
 async function loadMonth() {
   $("monthLabel").textContent = state.currentMonth.toLocaleString("en-US", { month: "long", year: "numeric" });
-  $("dateGrid").innerHTML = `<p class="muted">Loading available dates...</p>`;
-  $("timePanel").classList.add("hidden");
+  $("dateGrid").innerHTML = `<p class="muted">Loading available times...</p>`;
 
   const path = `/api/availability-dates?appointmentTypeID=${state.appointmentTypeID}&month=${monthKey(state.currentMonth)}&calendarID=${CALENDAR_ID}`;
   const { ok, data } = await api(path);
@@ -358,59 +400,79 @@ async function loadMonth() {
   grid.innerHTML = "";
 
   if (!ok || !data.ok || !Array.isArray(data.dates) || data.dates.length === 0) {
-    grid.innerHTML = `<p class="muted">No available dates this month. Try another month.</p>`;
+    grid.innerHTML = `<p class="muted">No available times this month. Try another month.</p>`;
     return;
   }
 
-  data.dates.forEach((item) => {
-    const dateObj = new Date(`${item.date}T00:00:00`);
-    const cell = document.createElement("button");
-    cell.className = "date-cell";
-    cell.type = "button";
-    cell.innerHTML = `<span class="dow">${dateObj.toLocaleDateString("en-US", { weekday: "short" })}</span><span class="num">${dateObj.getDate()}</span>`;
-    cell.addEventListener("click", () => selectDate(item.date, cell));
-    grid.appendChild(cell);
-  });
+  const schedule = await Promise.all(data.dates.map(async (item) => {
+    const timesPath = `/api/availability-times?appointmentTypeID=${state.appointmentTypeID}&date=${item.date}&calendarID=${CALENDAR_ID}`;
+    const timesRes = await api(timesPath);
+    return {
+      date: item.date,
+      times: timesRes.ok && timesRes.data && Array.isArray(timesRes.data.times) ? timesRes.data.times : []
+    };
+  }));
+
+  state.scheduleData = schedule;
+  renderSchedule();
 }
 
-async function selectDate(date, cellEl) {
-  document.querySelectorAll(".date-cell").forEach((cell) => cell.classList.remove("selected-day"));
-  cellEl.classList.add("selected-day");
-  state.activeDate = date;
-
-  $("timePanel").classList.remove("hidden");
-  $("timePanelLabel").textContent = `Times for ${date}`;
-  $("timeGrid").innerHTML = `<p class="muted">Loading times...</p>`;
-
-  const path = `/api/availability-times?appointmentTypeID=${state.appointmentTypeID}&date=${date}&calendarID=${CALENDAR_ID}`;
-  const { ok, data } = await api(path);
-  const grid = $("timeGrid");
+function renderSchedule() {
+  const grid = $("dateGrid");
   grid.innerHTML = "";
 
-  if (!ok || !data.ok || !Array.isArray(data.times) || data.times.length === 0) {
-    grid.innerHTML = `<p class="muted">No available times this day.</p>`;
+  if (!Array.isArray(state.scheduleData) || state.scheduleData.length === 0) {
+    grid.innerHTML = `<p class="muted">No available times this month. Try another month.</p>`;
     return;
   }
 
-  data.times.forEach((item) => {
-    const label = new Date(item.time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    const already = state.selected.some((slot) => slot.datetime === item.time);
-    const atLimit = state.selected.length >= state.remaining;
-    const slot = document.createElement("button");
-    slot.type = "button";
-    slot.className = `time-slot${already ? " picked" : ""}${atLimit && !already ? " disabled" : ""}`;
-    slot.textContent = label;
-    slot.addEventListener("click", () => {
-      if (already) {
-        state.selected = state.selected.filter((existing) => existing.datetime !== item.time);
-      } else if (!atLimit) {
-        if (!selectedTier().needsPackage) state.selected = [];
-        state.selected.push({ date, time: label, datetime: item.time });
-      }
-      updateSelectedUI();
-      selectDate(date, cellEl);
-    });
-    grid.appendChild(slot);
+  state.scheduleData.forEach((item) => {
+    const dateObj = new Date(`${item.date}T00:00:00`);
+    const column = document.createElement("article");
+    column.className = "schedule-day";
+    column.innerHTML = `
+      <header class="schedule-day-head">
+        <span class="schedule-dow">${dateObj.toLocaleDateString("en-US", { weekday: "short" })}</span>
+        <strong class="schedule-date">${dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</strong>
+      </header>
+      <div class="schedule-times"></div>
+    `;
+
+    const timesWrap = column.querySelector(".schedule-times");
+    if (!item.times.length) {
+      const empty = document.createElement("div");
+      empty.className = "schedule-empty";
+      empty.textContent = "No times";
+      timesWrap.appendChild(empty);
+    } else {
+      item.times.forEach((timeItem) => {
+        const label = new Date(timeItem.time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        const already = state.selected.some((slot) => slot.datetime === timeItem.time);
+        const atLimit = state.selected.length >= state.remaining;
+        const slot = document.createElement("button");
+        slot.type = "button";
+        slot.className = `time-slot${already ? " picked" : ""}${atLimit && !already ? " disabled" : ""}`;
+        slot.textContent = label;
+        slot.disabled = atLimit && !already;
+        slot.addEventListener("click", () => {
+          if (already) {
+            state.selected = state.selected.filter((existing) => existing.datetime !== timeItem.time);
+          } else if (!atLimit) {
+            if (!selectedTier().needsPackage) state.selected = [];
+            state.selected.push({
+              date: item.date,
+              time: label,
+              datetime: timeItem.time
+            });
+          }
+          updateSelectedUI();
+          renderSchedule();
+        });
+        timesWrap.appendChild(slot);
+      });
+    }
+
+    grid.appendChild(column);
   });
 }
 
@@ -461,6 +523,10 @@ function acuityBookingUrl(details) {
   return url.toString();
 }
 
+function bookingLabel() {
+  return `${selectedSubject().name} - ${selectedFormat().label}`;
+}
+
 async function finishBooking() {
   const details = {
     firstName: $("firstName").value.trim(),
@@ -478,7 +544,7 @@ async function finishBooking() {
   }
 
   if (!selectedTier().needsPackage) {
-    location.href = acuityBookingUrl(details);
+    openInNewTab(acuityBookingUrl(details));
     return;
   }
 
@@ -533,6 +599,7 @@ $("continueChoiceBtn").addEventListener("click", continueFromChoice);
 $("backToChoiceBtn").addEventListener("click", () => setStep(1));
 $("toStep3Btn").addEventListener("click", goToDetails);
 $("backToTimeBtn").addEventListener("click", () => setStep(2));
+$("changeLessonLink").addEventListener("click", () => setStep(1));
 $("finishBtn").addEventListener("click", finishBooking);
 $("prevMonth").addEventListener("click", () => {
   state.currentMonth.setMonth(state.currentMonth.getMonth() - 1);
