@@ -34,13 +34,10 @@
       }
 
       event.preventDefault();
-      const link = document.createElement("a");
-      link.href = target;
-      link.target = "_blank";
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const tab = window.open(target, "_blank");
+      if (tab) {
+        tab.focus();
+      }
     });
   }
 

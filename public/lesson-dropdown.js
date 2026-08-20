@@ -59,13 +59,10 @@
   var currentSubject = null;
 
   function openInNewTab(url) {
-    var link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    var tab = window.open(url, "_blank");
+    if (tab) {
+      tab.focus();
+    }
   }
 
   function openModal(subject) {

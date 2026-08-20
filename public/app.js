@@ -121,13 +121,10 @@ function handleReturnTarget(target) {
 }
 
 function openInNewTab(url) {
-  const link = document.createElement("a");
-  link.href = url;
-  link.target = "_blank";
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  const tab = window.open(url, "_blank");
+  if (tab) {
+    tab.focus();
+  }
 }
 
 async function api(path, opts = {}) {
