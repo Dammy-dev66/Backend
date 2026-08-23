@@ -106,6 +106,14 @@ function storedBackUrl() {
   return localStorage.getItem("finbarBackUrl") || "";
 }
 
+function savedPendingBooking() {
+  try {
+    return JSON.parse(sessionStorage.getItem("finbarPendingBooking") || "{}");
+  } catch {
+    return {};
+  }
+}
+
 function clearReturnTarget() {
   localStorage.removeItem("finbarReturnTarget");
 }
@@ -209,10 +217,15 @@ function populateSelectors() {
   const source = params.get("source") || "";
   const email = params.get("email") || saved.packageEmail || "";
   const orderID = params.get("orderID") || "";
+  const productID = params.get("productID") || "";
+  const datetime = params.get("datetime") || "";
+  const appointmentCreated = params.get("appointmentCreated") === "1";
+  const certificateCreated = params.get("certificateCreated") === "1";
   const backUrl = params.get("backUrl") || saved.backUrl || storedBackUrl() || "";
 
   state.returnSource = source;
   state.returnOrderID = orderID;
+  state.productID = productID || state.productID;
   state.backUrl = backUrl;
   if (backUrl) {
     localStorage.setItem("finbarBackUrl", backUrl);
@@ -261,7 +274,12 @@ function populateSelectors() {
 
   syncBackLinks();
 
-  if (source === "acuity" && selectedTier().needsPackage) {
+  if (appointmentCreated) {
+    queueMicrotask(() => showCompletedBooking({ datetime }));
+    return;
+  }
+
+  if (selectedTier().needsPackage && (source === "acuity" || certificateCreated || productID)) {
     setPackageMode("redeem");
     queueMicrotask(() => resumeReturnedPackage());
   } else {
@@ -282,7 +300,7 @@ function updateChoiceUI() {
   $("packageChoice").classList.toggle("hidden", !tier.needsPackage);
   $("certificateFields").classList.toggle("hidden", !tier.needsPackage || state.packageMode === "buy");
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
-    ? "Buy package securely"
+    ? "Continue to custom checkout"
     : "Continue";
 }
 
@@ -293,23 +311,35 @@ function setPackageMode(mode) {
   updateChoiceUI();
 }
 
-function packagePurchaseUrl() {
-  const returnUrl = new URL("/return.html", location.origin);
-  returnUrl.searchParams.set("subject", selectedSubject().name);
-  returnUrl.searchParams.set("format", state.formatKey);
-  returnUrl.searchParams.set("tier", state.tierKey);
-  returnUrl.searchParams.set("appointmentTypeID", String(state.appointmentTypeID));
-  if (state.backUrl) {
-    returnUrl.searchParams.set("backUrl", state.backUrl);
+async function checkoutBridgeUrl(details = {}) {
+  const { ok, data } = await api("/api/package-checkout", {
+    method: "POST",
+    body: JSON.stringify({
+      subject: selectedSubject().name,
+      format: state.formatKey,
+      tier: state.tierKey,
+      appointmentTypeID: String(state.appointmentTypeID),
+      productID: state.productID ? String(state.productID) : "",
+      email: details.email || state.packageEmail || "",
+      backUrl: state.backUrl || "",
+      source: "custom-flow",
+      datetime: details.datetime || "",
+      calendarID: CALENDAR_ID,
+      firstName: details.firstName || "",
+      lastName: details.lastName || "",
+      phone: details.phone || "",
+      studentName: details.studentName || "",
+      studentFieldID: STUDENT_NAME_FIELD_ID,
+      notes: details.notes || "",
+      timezone: details.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+    })
+  });
+
+  if (!ok || !data.ok || !data.url) {
+    throw new Error(data.error || "We could not open the custom checkout page.");
   }
 
-  const url = new URL("https://app.acuityscheduling.com/catalog.php");
-  url.searchParams.set("owner", OWNER_ID);
-  url.searchParams.set("action", "addCart");
-  url.searchParams.set("clear", "1");
-  url.searchParams.set("id", String(state.productID));
-  url.searchParams.set("returnUrl", returnUrl.toString());
-  return url.toString();
+  return data.url;
 }
 
 async function resumeReturnedPackage() {
@@ -364,8 +394,18 @@ async function continueFromChoice() {
       packageEmail: $("packageEmailInput").value.trim(),
       backUrl: state.backUrl
     }));
-    openInNewTab(packagePurchaseUrl());
-    return;
+    $("continueChoiceBtn").disabled = true;
+    $("continueChoiceBtn").textContent = "Opening custom checkout...";
+    try {
+      const checkoutUrl = await checkoutBridgeUrl({ email: $("packageEmailInput").value.trim() });
+      openInNewTab(checkoutUrl);
+      return;
+    } catch (error) {
+      $("step1Error").textContent = error.message;
+      $("continueChoiceBtn").disabled = false;
+      updateChoiceUI();
+      return;
+    }
   }
 
   state.selected = [];
@@ -518,30 +558,42 @@ function updateSelectedUI() {
 function goToDetails() {
   $("detailsLead").textContent = selectedTier().needsPackage
     ? `These details apply to the ${state.selected.length} package session(s) selected.`
-    : "These details will be passed to Acuity so checkout stays quick.";
+    : "These details will be carried into the custom checkout so the handoff stays quick.";
   if (state.packageEmail && !$("email").value) $("email").value = state.packageEmail;
-  $("finishBtn").textContent = selectedTier().needsPackage ? "Confirm package sessions" : "Continue to secure checkout";
+  $("finishBtn").textContent = selectedTier().needsPackage ? "Confirm package sessions" : "Continue to custom checkout";
   setStep(3);
-}
-
-function acuityBookingUrl(details) {
-  const slot = state.selected[0];
-  const url = new URL("https://app.acuityscheduling.com/schedule.php");
-  url.searchParams.set("owner", OWNER_ID);
-  url.searchParams.set("appointmentType", String(state.appointmentTypeID));
-  url.searchParams.set("calendarID", String(CALENDAR_ID));
-  url.searchParams.set("datetime", slot.datetime);
-  url.searchParams.set("firstName", details.firstName);
-  url.searchParams.set("lastName", details.lastName);
-  url.searchParams.set("email", details.email);
-  url.searchParams.set("phone", details.phone);
-  url.searchParams.set(`field:${STUDENT_NAME_FIELD_ID}`, details.studentName);
-  if (details.notes) url.searchParams.set("notes", details.notes);
-  return url.toString();
 }
 
 function bookingLabel() {
   return `${selectedSubject().name} - ${selectedFormat().label}`;
+}
+
+function showCompletedBooking({ datetime }) {
+  const pending = savedPendingBooking();
+  const slotLabel = datetime
+    ? new Date(datetime).toLocaleString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      })
+    : pending.selection?.[0]
+      ? `${pending.selection[0].date} at ${pending.selection[0].time}`
+      : "your lesson";
+
+  $("finishTitle").textContent = "Booking confirmed.";
+  $("finishMessage").textContent = `Your lesson on ${slotLabel} is confirmed and your Acuity email should arrive shortly.`;
+
+  const items = Array.isArray(pending.selection) && pending.selection.length
+    ? pending.selection
+    : (state.selected.length ? state.selected : []);
+
+  $("confirmedList").innerHTML = items.map((item) => {
+    const label = item.date && item.time ? `${item.date} at ${item.time}` : slotLabel;
+    return `<li><strong>${label}</strong></li>`;
+  }).join("");
+  setStep(4);
 }
 
 async function finishBooking() {
@@ -561,7 +613,31 @@ async function finishBooking() {
   }
 
   if (!selectedTier().needsPackage) {
-    openInNewTab(acuityBookingUrl(details));
+    sessionStorage.setItem("finbarPendingBooking", JSON.stringify({
+      subject: selectedSubject().name,
+      format: state.formatKey,
+      tier: state.tierKey,
+      appointmentTypeID: state.appointmentTypeID,
+      selection: state.selected,
+      details,
+      datetime: state.selected[0]?.datetime || ""
+    }));
+    $("finishBtn").disabled = true;
+    $("finishBtn").textContent = "Opening custom checkout...";
+    try {
+      const checkoutUrl = await checkoutBridgeUrl({
+        ...details,
+        datetime: state.selected[0]?.datetime || "",
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
+      openInNewTab(checkoutUrl);
+      return;
+    } catch (error) {
+      $("step3Error").textContent = error.message;
+      $("finishBtn").disabled = false;
+      $("finishBtn").textContent = "Continue to custom checkout";
+      return;
+    }
     return;
   }
 

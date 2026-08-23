@@ -2,9 +2,10 @@
   "name": "finbar-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Vercel serverless backend for Acuity package bookings and booking integrations.",
+  "description": "Vercel serverless backend for Fin's custom booking flow.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "dev": "node scripts/local-dev.js"
   },
   "engines": {
     "node": ">=20"

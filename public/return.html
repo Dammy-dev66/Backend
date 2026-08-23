@@ -16,7 +16,7 @@
       </div>
     </header>
     <main class="panel">
-      <p class="eyebrow">Package Purchased</p>
+      <p class="eyebrow">Payment Complete</p>
       <h1>Returning to booking.</h1>
       <p class="lede">We are sending you back to the custom booking page now so you can pick your time slots.</p>
       <a class="btn-link" id="bookLink" href="/">Continue to booking</a>
@@ -33,7 +33,7 @@
     })();
     const storedBackUrl = localStorage.getItem("finbarBackUrl") || "";
     const next = new URL("/", location.origin);
-    ["subject", "format", "tier", "appointmentTypeID", "email", "orderID", "backUrl"].forEach((key) => {
+    ["subject", "format", "tier", "appointmentTypeID", "email", "orderID", "backUrl", "productID", "datetime", "appointmentCreated", "certificateCreated", "totalPrice", "couponCode"].forEach((key) => {
       if (params.has(key)) next.searchParams.set(key, params.get(key));
     });
     if (params.get("source")) {

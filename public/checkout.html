@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Custom Checkout - Finbar B. Elite Tutoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page">
+    <header class="brand">
+      <img class="brand-mark" src="https://i.imgur.com/HWaJZhQ.png" alt="Finbar B. Elite Tutoring">
+      <div>
+        <div class="brand-name">Finbar B.</div>
+        <div class="brand-kicker">Elite Tutoring</div>
+      </div>
+    </header>
+
+    <main class="panel">
+      <p class="eyebrow">Package Purchase</p>
+      <h1>Continue to custom payment.</h1>
+      <p class="lede">This bridge keeps the student inside Fin's flow while payment is handled by the custom checkout.</p>
+
+      <div class="summary" id="checkoutSummary"></div>
+      <label class="field">
+        <span>Coupon code</span>
+        <input type="text" id="couponCodeInput" autocomplete="off" placeholder="Optional coupon">
+      </label>
+      <button class="btn-secondary" id="applyCouponBtn" type="button">Apply coupon</button>
+      <div class="summary" id="priceSummary"></div>
+      <p class="field-error hidden" id="checkoutError"></p>
+
+      <button class="btn-primary" id="paymentBtn" type="button">Continue to payment</button>
+      <a class="btn-link" id="returnLink" href="/">Return to booking</a>
+    </main>
+  </div>
+  <script src="/checkout.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 <script>
   (function () {
     var url = new URL("https://backend-ymlj.vercel.app/return.html");
-    url.searchParams.set("type", "%type%");
+    url.searchParams.set("source", "acuity");
     url.searchParams.set("email", "%email%");
     url.searchParams.set("orderID", "%id%");
 

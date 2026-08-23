@@ -1,120 +1,71 @@
 # Finbar Backend
 
-Vercel serverless backend for booking integrations.
+Vercel serverless backend for Fin's custom booking flow.
 
-## Acuity Package Bookings
+## What this repo now does
 
-Live custom booking page:
+This project keeps the student inside the custom Fin journey instead of sending them into Acuity's package store.
 
-https://backend-ymlj.vercel.app/
+- Carrd and the custom booking page stay as the front door.
+- Package purchase goes through `public/checkout.html` or a configured external payment URL, not Acuity's store page.
+- Acuity is used behind the scenes for availability, certificate lookup, and appointment creation.
+- Package redemption still uses Acuity certificates as the source of truth for remaining credits.
 
-The important rule is that the public page must not decide whether a class is package-covered. The front end sends the package/certificate code to this backend, this backend asks Acuity whether the code is valid for the client and appointment type, and only then creates the appointment with the `certificate` field attached.
+## Main routes
 
-That keeps the package credit count inside Acuity as the single source of truth.
+- `public/` is the student-facing custom booking flow.
+- `public/checkout.html` is the custom package checkout bridge.
+- `public/mock-payment.html` is a local payment simulator used until the real provider is connected.
+- `public/return.html` is the return bridge back into the booking flow after payment.
+- `api/package-checkout.js` builds the custom checkout URL.
+- `api/payment-complete.js` turns a completed package payment into the Acuity handoff URL and creates the entitlement when package details are present.
+- `api/resolve-package.js` finds the certificate for a package by email, order, or product.
+- `api/book-with-package.js` validates the certificate and books the appointment in Acuity.
+- `api/availability-dates.js` and `api/availability-times.js` proxy Acuity availability into the custom flow.
+- `api/webhooks/acuity.js` accepts Acuity webhook events for logging and audit.
+- `npm run dev` starts a local Node server that serves `public/` and the API routes on `http://127.0.0.1:4174`.
 
-### Files
+## Intended flow
 
-- `api/resolve-package.js` asks Acuity for the active package tied to a client email, order, or product and resolves the certificate behind the scenes.
-- `api/book-with-package.js` resolves the package if needed, validates it, and creates the Acuity appointment with the certificate attached.
-- `api/webhooks/acuity.js` accepts Acuity webhook events for audit logging and signature verification.
-- `api/availability-dates.js` proxies Acuity availability dates to the custom frontend.
-- `api/availability-times.js` proxies Acuity availability times to the custom frontend.
-- `public/` contains the uniform booking frontend for trial, single, and package flows.
-- `lib/acuity.js` wraps Acuity API calls.
-- `lib/http.js` handles JSON and CORS helpers.
+1. The student lands on the custom booking page.
+2. They choose subject, lesson format, and booking type.
+3. If they already have a package, the backend resolves the Acuity certificate and the student books from the custom page.
+4. If they need to buy a package, the custom page opens the checkout bridge instead of Acuity.
+5. After payment, the backend creates the package certificate in Acuity and the student returns to `return.html`, which sends them back to the custom booking page.
 
-### Uniform Customer Journey
-
-1. Customer starts on the custom page at `https://backend-ymlj.vercel.app/`.
-2. Customer chooses subject, lesson format, and booking type.
-3. Trial or single lesson customers pick one slot in the custom UI, enter details, then go to Acuity's secure checkout with the selected slot prefilled.
-4. Package customers who already own a package enter the purchase email only. The backend asks Acuity for the valid certificate tied to that email and appointment type, then books only up to the remaining credit balance.
-5. Package customers who need to buy first are sent to the exact Acuity package product, then returned to `https://backend-ymlj.vercel.app/return.html`, which immediately bounces them back into the custom booking flow with the subject and lesson type restored.
-
-### Package Purchase Redirect
-
-The custom frontend still includes a return URL for backup, but the reliable fix is Acuity's custom conversion tracking code. Paste this into **Acuity -> Integrations -> Custom conversion tracking**:
-
-```html
-<script>
-  setTimeout(function () {
-    var url = new URL("https://backend-ymlj.vercel.app/return.html");
-    url.searchParams.set("type", "%type%");
-    url.searchParams.set("email", "%email%");
-    url.searchParams.set("orderID", "%id%");
-    top.location.replace(url.toString());
-  }, 1000);
-</script>
-```
-
-If you want the exact paste-ready version without the markdown wrapper, use:
-
-- `public/acuity-custom-conversion-snippet.txt`
-
-The redirect brings the customer back to the custom flow without asking for a code. The return page auto-continues into the booking UI after a short pause, and the booking backend resolves the package certificate from Acuity using the client's email and order data.
-
-If the package purchase was opened in a new tab, the return bridge will also try to close the Acuity tab after sending the student back to the custom booking page. If the browser refuses to close it, the custom page still receives the return target and refreshes itself into the booking flow.
-
-### Vercel Environment Variables
+## Environment variables
 
 ```txt
 ACUITY_USER_ID=your_numeric_acuity_user_id
-ACUITY_API_KEY=your_acuity_api_key
+ACUITY_API_KEY=rotate_and_add_your_acuity_api_key_here
 ALLOWED_ORIGINS=https://your-carrd-site.example,https://your-custom-domain.example
+CUSTOM_PAYMENT_URL=https://your-payment-provider.example/checkout
+
+# Optional. Leave false if package bookings must never fall through to card checkout.
 ALLOW_FULL_PRICE_FALLBACK=false
 ```
 
-Rotate the Acuity API key before deployment if it has been pasted into chat or shared anywhere public.
+`CUSTOM_PAYMENT_URL` is the new bridge to whatever payment provider you choose for the custom flow. If it is not set, the checkout page still opens and uses the local mock payment simulator so the flow can still be verified end-to-end.
 
-### Front-End Usage
+`CUSTOM_PROMO_CODES` is an optional JSON map of promo code names to discount definitions. The checkout bridge uses it to calculate the final package total before the payment handoff.
 
-The booking page should call `POST /api/book-with-package` instead of sending a package booking directly from the browser to Acuity.
+For local verification, run `npm run dev` and open `http://127.0.0.1:4174/`. The dev server exercises the same static pages and API handlers used in production, without needing Vercel CLI.
 
-Example request:
+## Notes on Acuity
 
-```json
-{
-  "datetime": "2026-09-01T14:00:00+0100",
-  "appointmentTypeID": 123456,
-  "calendarID": 987654,
-  "firstName": "Jane",
-  "lastName": "Parent",
-  "email": "jane@example.com",
-  "phone": "+353...",
-  "orderID": "123456",
-  "timezone": "Europe/Dublin",
-  "fields": [
-    { "id": 111111, "value": "Student name" }
-  ]
-}
-```
+The Acuity docs and support response confirmed the important constraints:
 
-Successful package booking response:
+- private appointment types are hidden from the public scheduler, but direct links still work
+- Acuity does not support an automatic redirect after purchase or booking
+- package purchases inside Acuity used to expose the `Use Package` path
 
-```json
-{
-  "ok": true,
-  "paidByPackage": true,
-  "appointment": {}
-}
-```
+That is why the student-facing package purchase has been moved out of Acuity and into the custom flow.
 
-If the package is expired, invalid, not valid for that appointment type, or has no remaining uses, the response returns `ok: false` and does not create a package-covered appointment.
+## Verification
 
-### Why This Fixes The Package Bugs
+The current backend is still designed to:
 
-Package limit enforcement happens before appointment creation by resolving the certificate from Acuity and then calling Acuity's certificate check endpoint. If the pack has no remaining uses, Acuity returns a certificate error and the backend refuses the package booking.
-
-Double-charging is avoided because the appointment is created with Acuity's `certificate` attribute. The appointment is not independently sent into a full-price checkout path after the user selects "Use package".
-
-### Acuity References
-
-- Acuity's appointments API documents booking appointments with coupons and package certificates by setting the `certificate` attribute: https://developers.acuityscheduling.com/reference/post-appointments
-- The same Acuity page lists package-related validation errors including `certificate_uses`, `expired_certificate`, and `invalid_certificate_type`.
-- Acuity certificate validation uses `/certificates/check` with `certificate`, `appointmentTypeID`, and optionally `email`.
-
-### Carrd Script Links
-
-- Booking slider / modal behavior: https://backend-ymlj.vercel.app/lesson-dropdown.js
-- Booking page: https://backend-ymlj.vercel.app/
-- Return bridge: https://backend-ymlj.vercel.app/return.html
+- validate package certificates before booking
+- stop package bookings when there are no remaining uses
+- create Acuity appointments only after the package is confirmed
+- avoid sending the student into Acuity's package store
