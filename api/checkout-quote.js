@@ -1,79 +1,13 @@
 const { handleOptions, readJson, sendJson } = require("../lib/http");
-
-const PACKAGE_PRICES = {
-  oneToOne: {
-    trial: 25,
-    single: 50,
-    pack6: 264,
-    pack12: 456
-  },
-  oneToTwo: {
-    trial: 35,
-    single: 70,
-    pack6: 360,
-    pack12: 648
-  }
-};
+const { applyCoupon, applyDiscount, couponAppliesToPackage, getCouponByCode } = require("../lib/coupons");
+const { resolveBasePrice, resolvePackageLabel } = require("../lib/pricing");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function readPromos() {
-  const raw = cleanString(process.env.CUSTOM_PROMO_CODES);
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed;
-    }
-  } catch {
-    // Fall through to an empty promo map.
-  }
-
-  return {};
-}
-
 function normalizeCoupon(coupon) {
   return cleanString(coupon).toUpperCase();
-}
-
-function resolveBasePrice(format, tier) {
-  const value = PACKAGE_PRICES[format]?.[tier];
-  return Number.isFinite(value) ? value : null;
-}
-
-function resolvePromo(code) {
-  const promos = readPromos();
-  return promos[normalizeCoupon(code)] || null;
-}
-
-function applyDiscount(basePrice, promo) {
-  if (!promo) {
-    return { discountAmount: 0, totalPrice: basePrice };
-  }
-
-  const type = cleanString(promo.type || promo.kind || "amount").toLowerCase();
-  const rawValue = Number(promo.value ?? promo.amount ?? promo.percent ?? 0);
-  if (!Number.isFinite(rawValue) || rawValue <= 0) {
-    return { discountAmount: 0, totalPrice: basePrice };
-  }
-
-  let discountAmount = 0;
-  if (type === "percent") {
-    discountAmount = Math.round((basePrice * rawValue) / 100);
-  } else {
-    discountAmount = Math.round(rawValue);
-  }
-
-  discountAmount = Math.min(basePrice, Math.max(0, discountAmount));
-  return {
-    discountAmount,
-    totalPrice: Math.max(0, basePrice - discountAmount)
-  };
 }
 
 module.exports = async function handler(req, res) {
@@ -97,9 +31,11 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const promo = couponCode ? resolvePromo(couponCode) : null;
-    const applied = applyDiscount(basePrice, promo);
-    const couponValid = !couponCode || Boolean(promo);
+    const promo = couponCode ? await getCouponByCode(couponCode) : null;
+    const packageKey = `${format}:${tier}`;
+    const packageAllowed = !promo || couponAppliesToPackage(promo, format, tier);
+    const applied = packageAllowed ? applyCoupon(basePrice, promo) : { discountAmount: 0, totalPrice: basePrice };
+    const couponValid = !couponCode || (Boolean(promo) && packageAllowed);
 
     return sendJson(req, res, 200, {
       ok: true,
@@ -109,7 +45,9 @@ module.exports = async function handler(req, res) {
       totalPrice: applied.totalPrice,
       couponCode: couponCode || "",
       couponValid,
-      couponMessage: promo?.label || promo?.message || ""
+      couponMessage: packageAllowed ? (promo?.label || promo?.message || "") : "This coupon does not apply to the selected package.",
+      packageKey,
+      packageLabel: resolvePackageLabel(format, tier)
     });
   } catch (error) {
     return sendJson(req, res, error.statusCode || 500, {
@@ -118,7 +56,6 @@ module.exports = async function handler(req, res) {
     });
   }
 };
-
 module.exports.resolveBasePrice = resolveBasePrice;
-module.exports.resolvePromo = resolvePromo;
+module.exports.normalizeCoupon = normalizeCoupon;
 module.exports.applyDiscount = applyDiscount;

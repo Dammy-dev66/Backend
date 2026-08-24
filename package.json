@@ -10,5 +10,8 @@
   "engines": {
     "node": ">=20"
   },
-  "devDependencies": {}
+  "dependencies": {
+    "@vercel/blob": "^2.8.0",
+    "stripe": "^22.5.0"
+  }
 }

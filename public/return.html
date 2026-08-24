@@ -32,52 +32,92 @@
       }
     })();
     const storedBackUrl = localStorage.getItem("finbarBackUrl") || "";
-    const next = new URL("/", location.origin);
-    ["subject", "format", "tier", "appointmentTypeID", "email", "orderID", "backUrl", "productID", "datetime", "appointmentCreated", "certificateCreated", "totalPrice", "couponCode"].forEach((key) => {
-      if (params.has(key)) next.searchParams.set(key, params.get(key));
-    });
-    if (params.get("source")) {
-      next.searchParams.set("source", params.get("source"));
-    } else {
-      next.searchParams.set("source", "acuity");
-    }
-    ["subject", "format", "tier", "appointmentTypeID", "packageEmail", "backUrl"].forEach((key) => {
-      if (!next.searchParams.has(key) && saved[key]) next.searchParams.set(key, saved[key]);
-    });
-    if (!next.searchParams.has("backUrl") && storedBackUrl) {
-      next.searchParams.set("backUrl", storedBackUrl);
-    }
-    document.getElementById("bookLink").href = next.toString();
 
-    const meta = document.createElement("meta");
-    meta.httpEquiv = "refresh";
-    meta.content = `0;url=${next.toString()}`;
-    document.head.appendChild(meta);
-
-    localStorage.setItem("finbarReturnTarget", next.toString());
-
-    if (window.opener && !window.opener.closed) {
-      try {
-        window.opener.location.replace(next.toString());
-        window.opener.focus();
-      } catch (error) {
-        // The opener path is best-effort only.
+    function buildNextUrl() {
+      const next = new URL("/", location.origin);
+      ["subject", "format", "tier", "appointmentTypeID", "email", "orderID", "backUrl", "productID", "datetime", "appointmentCreated", "certificateCreated", "totalPrice", "couponCode"].forEach((key) => {
+        if (params.has(key)) next.searchParams.set(key, params.get(key));
+      });
+      if (params.get("source")) {
+        next.searchParams.set("source", params.get("source"));
+      } else {
+        next.searchParams.set("source", "acuity");
       }
-    }
-
-    try {
-      window.location.replace(next.toString());
-    } catch (error) {
-      // Meta refresh is the fallback if direct navigation is blocked.
-    }
-
-    setTimeout(() => {
-      try {
-        window.close();
-      } catch (error) {
-        // If the browser refuses to close the tab, the page should already be on the custom booking route.
+      ["subject", "format", "tier", "appointmentTypeID", "packageEmail", "backUrl"].forEach((key) => {
+        if (!next.searchParams.has(key) && saved[key]) next.searchParams.set(key, saved[key]);
+      });
+      if (!next.searchParams.has("backUrl") && storedBackUrl) {
+        next.searchParams.set("backUrl", storedBackUrl);
       }
-    }, 0);
+      return next;
+    }
+
+    async function finishStripeReturn() {
+      const next = buildNextUrl();
+      const sessionId = params.get("session_id");
+      if (sessionId) {
+        const res = await fetch("/api/stripe-complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            subject: next.searchParams.get("subject") || params.get("subject") || "",
+            format: next.searchParams.get("format") || params.get("format") || "",
+            tier: next.searchParams.get("tier") || params.get("tier") || "",
+            appointmentTypeID: next.searchParams.get("appointmentTypeID") || params.get("appointmentTypeID") || "",
+            email: next.searchParams.get("email") || params.get("email") || "",
+            productID: next.searchParams.get("productID") || params.get("productID") || "",
+            backUrl: next.searchParams.get("backUrl") || params.get("backUrl") || "",
+            datetime: next.searchParams.get("datetime") || params.get("datetime") || "",
+            couponCode: next.searchParams.get("couponCode") || params.get("couponCode") || "",
+            source: params.get("source") || "stripe"
+          })
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok && data.url) {
+          next.href = data.url;
+        }
+      }
+
+      document.getElementById("bookLink").href = next.toString();
+
+      const meta = document.createElement("meta");
+      meta.httpEquiv = "refresh";
+      meta.content = `0;url=${next.toString()}`;
+      document.head.appendChild(meta);
+
+      localStorage.setItem("finbarReturnTarget", next.toString());
+
+      if (window.opener && !window.opener.closed) {
+        try {
+          window.opener.location.replace(next.toString());
+          window.opener.focus();
+        } catch (error) {
+          // The opener path is best-effort only.
+        }
+      }
+
+      try {
+        window.location.replace(next.toString());
+      } catch (error) {
+        // Meta refresh is the fallback if direct navigation is blocked.
+      }
+
+      setTimeout(() => {
+        try {
+          window.close();
+        } catch (error) {
+          // If the browser refuses to close the tab, the page should already be on the custom booking route.
+        }
+      }, 0);
+    }
+
+    finishStripeReturn().catch(() => {
+      const next = buildNextUrl();
+      document.getElementById("bookLink").href = next.toString();
+      location.replace(next.toString());
+    });
   </script>
 </body>
 </html>

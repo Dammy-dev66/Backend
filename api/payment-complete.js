@@ -29,7 +29,8 @@ function buildPaymentCompleteUrl({
   certificateCreated,
   totalPrice,
   datetime,
-  source
+  source,
+  sessionID
 }, baseOrigin) {
   const url = new URL("/return.html", resolvePublicOrigin(baseOrigin || "https://backend-ymlj.vercel.app"));
   url.searchParams.set("subject", subject);
@@ -41,6 +42,7 @@ function buildPaymentCompleteUrl({
   if (orderID) url.searchParams.set("orderID", orderID);
   if (productID) url.searchParams.set("productID", productID);
   if (couponCode) url.searchParams.set("couponCode", couponCode);
+  if (sessionID) url.searchParams.set("session_id", sessionID);
   if (datetime) url.searchParams.set("datetime", datetime);
   if (appointmentCreated) url.searchParams.set("appointmentCreated", "1");
   if (certificateCreated) url.searchParams.set("certificateCreated", "1");
@@ -126,7 +128,8 @@ module.exports = async function handler(req, res) {
       certificateCreated,
       totalPrice: cleanString(body.totalPrice),
       datetime,
-      source: cleanString(body.source)
+      source: cleanString(body.source),
+      sessionID: cleanString(body.sessionID)
     }, resolveBaseOrigin(req));
 
     return sendJson(req, res, 200, {

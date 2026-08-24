@@ -5,7 +5,7 @@ const { buildPackageCheckoutUrl } = require("../api/package-checkout");
 
 test("buildPackageCheckoutUrl keeps the student on the custom checkout bridge", () => {
   const url = buildPackageCheckoutUrl(
-    {
+  {
       subject: "AP Psychology",
       format: "oneToOne",
       tier: "pack6",
@@ -24,8 +24,7 @@ test("buildPackageCheckoutUrl keeps the student on the custom checkout bridge", 
       notes: "Please be on time",
       timezone: "Europe/Dublin"
     },
-    "https://backend-ymlj.vercel.app",
-    "https://pay.example/checkout"
+    "https://backend-ymlj.vercel.app"
   );
 
   const parsed = new URL(url);
@@ -42,69 +41,5 @@ test("buildPackageCheckoutUrl keeps the student on the custom checkout bridge", 
   assert.equal(parsed.searchParams.get("studentFieldID"), "18796496");
   assert.equal(parsed.searchParams.get("notes"), "Please be on time");
   assert.equal(parsed.searchParams.get("timezone"), "Europe/Dublin");
-
-  const payment = new URL(parsed.searchParams.get("paymentUrl"));
-  assert.equal(payment.origin, "https://pay.example");
-  assert.equal(payment.pathname, "/checkout");
-  assert.equal(payment.searchParams.get("subject"), "AP Psychology");
-  assert.equal(payment.searchParams.get("tier"), "pack6");
-  assert.equal(payment.searchParams.get("datetime"), "2026-09-01T14:00:00+01:00");
-  assert.equal(payment.searchParams.get("calendarID"), "14289294");
-  assert.equal(payment.searchParams.get("firstName"), "Jane");
-  assert.equal(payment.searchParams.get("lastName"), "Parent");
-  assert.equal(payment.searchParams.get("phone"), "+353123456");
-  assert.equal(payment.searchParams.get("studentName"), "Student Name");
-  assert.equal(payment.searchParams.get("studentFieldID"), "18796496");
-  assert.equal(payment.searchParams.get("notes"), "Please be on time");
-  assert.equal(payment.searchParams.get("timezone"), "Europe/Dublin");
-  assert.equal(payment.searchParams.get("returnUrl"), "https://backend-ymlj.vercel.app/return.html?subject=AP+Psychology&format=oneToOne&tier=pack6&appointmentTypeID=95402039&email=student%40example.com&backUrl=https%3A%2F%2Fcarrd.example&source=custom-flow");
-  assert.equal(payment.searchParams.get("cancelUrl"), "https://backend-ymlj.vercel.app/checkout.html?subject=AP+Psychology&format=oneToOne&tier=pack6&appointmentTypeID=95402039&productID=2253280&email=student%40example.com&backUrl=https%3A%2F%2Fcarrd.example&source=custom-flow&datetime=2026-09-01T14%3A00%3A00%2B01%3A00&calendarID=14289294&firstName=Jane&lastName=Parent&phone=%2B353123456&studentName=Student+Name&studentFieldID=18796496&notes=Please+be+on+time&timezone=Europe%2FDublin");
   assert.doesNotMatch(url, /catalog\.php/);
-});
-
-test("buildPackageCheckoutUrl falls back to the local mock payment page", () => {
-  const url = buildPackageCheckoutUrl(
-    {
-      subject: "AP Psychology",
-      format: "oneToOne",
-      tier: "pack6",
-      appointmentTypeID: "95402039",
-      email: "student@example.com",
-      backUrl: "https://carrd.example",
-      source: "custom-flow"
-    },
-    "https://backend-ymlj.vercel.app",
-    ""
-  );
-
-  const parsed = new URL(url);
-  const payment = new URL(parsed.searchParams.get("paymentUrl"));
-  assert.equal(payment.origin, "https://backend-ymlj.vercel.app");
-  assert.equal(payment.pathname, "/mock-payment.html");
-});
-
-test("buildPackageCheckoutUrl refuses loopback payment URLs in live checkout links", () => {
-  const original = process.env.PUBLIC_SITE_ORIGIN;
-  process.env.PUBLIC_SITE_ORIGIN = "http://localhost:4174";
-
-  const url = buildPackageCheckoutUrl(
-    {
-      subject: "AP Psychology",
-      format: "oneToOne",
-      tier: "pack6",
-      appointmentTypeID: "95402039",
-      email: "student@example.com",
-      backUrl: "https://carrd.example",
-      source: "custom-flow"
-    },
-    "https://backend-ymlj.vercel.app",
-    "http://localhost:3000/checkout"
-  );
-
-  const parsed = new URL(url);
-  const payment = new URL(parsed.searchParams.get("paymentUrl"));
-  assert.equal(payment.origin, "https://backend-ymlj.vercel.app");
-  assert.equal(payment.pathname, "/mock-payment.html");
-
-  process.env.PUBLIC_SITE_ORIGIN = original;
 });

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coupon Admin - Finbar B. Elite Tutoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page admin-page">
+    <header class="brand">
+      <img class="brand-mark" src="https://i.imgur.com/HWaJZhQ.png" alt="Finbar B. Elite Tutoring">
+      <div>
+        <div class="brand-name">Finbar B.</div>
+        <div class="brand-kicker">Elite Tutoring</div>
+      </div>
+    </header>
+
+    <main class="panel admin-panel">
+      <p class="eyebrow">Coupon Admin</p>
+      <h1>Manage package coupons.</h1>
+      <p class="lede">Create percentage discounts, choose which packages they apply to, and save them to the shared coupon store.</p>
+
+      <div class="admin-toolbar">
+        <button class="btn-secondary" id="refreshBtn" type="button">Refresh</button>
+        <button class="btn-secondary" id="addCouponBtn" type="button">Add coupon</button>
+        <button class="btn-primary" id="saveBtn" type="button">Save changes</button>
+      </div>
+
+      <p class="field-error hidden" id="adminError"></p>
+      <p class="field-hint" id="adminStatus"></p>
+
+      <section class="admin-section">
+        <h2>Current coupons</h2>
+        <div id="couponList" class="coupon-list"></div>
+      </section>
+
+      <section class="admin-section">
+        <h2>Selected coupon</h2>
+        <div class="coupon-editor">
+          <label class="field">
+            <span>Code</span>
+            <input id="codeInput" type="text" placeholder="FIN15">
+          </label>
+          <label class="field">
+            <span>Discount percent</span>
+            <input id="percentInput" type="number" min="1" max="100" step="1" placeholder="15">
+          </label>
+          <label class="field">
+            <span>Label</span>
+            <input id="labelInput" type="text" placeholder="15% off selected packages">
+          </label>
+          <label class="field">
+            <span>Message</span>
+            <input id="messageInput" type="text" placeholder="Limited time coupon">
+          </label>
+          <label class="field checkbox-row">
+            <input id="activeInput" type="checkbox" checked>
+            <span>Active</span>
+          </label>
+          <div>
+            <span class="field-label">Applies to packages</span>
+            <div id="packageList" class="package-checkboxes"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/admin.js"></script>
+</body>
+</html>
