@@ -82,3 +82,29 @@ test("buildPackageCheckoutUrl falls back to the local mock payment page", () => 
   assert.equal(payment.origin, "https://backend-ymlj.vercel.app");
   assert.equal(payment.pathname, "/mock-payment.html");
 });
+
+test("buildPackageCheckoutUrl refuses loopback payment URLs in live checkout links", () => {
+  const original = process.env.PUBLIC_SITE_ORIGIN;
+  process.env.PUBLIC_SITE_ORIGIN = "http://localhost:4174";
+
+  const url = buildPackageCheckoutUrl(
+    {
+      subject: "AP Psychology",
+      format: "oneToOne",
+      tier: "pack6",
+      appointmentTypeID: "95402039",
+      email: "student@example.com",
+      backUrl: "https://carrd.example",
+      source: "custom-flow"
+    },
+    "https://backend-ymlj.vercel.app",
+    "http://localhost:3000/checkout"
+  );
+
+  const parsed = new URL(url);
+  const payment = new URL(parsed.searchParams.get("paymentUrl"));
+  assert.equal(payment.origin, "https://backend-ymlj.vercel.app");
+  assert.equal(payment.pathname, "/mock-payment.html");
+
+  process.env.PUBLIC_SITE_ORIGIN = original;
+});

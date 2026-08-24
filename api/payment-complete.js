@@ -1,5 +1,5 @@
 const { createAppointment, createCertificate } = require("../lib/acuity");
-const { handleOptions, readJson, resolveBaseOrigin, sendJson } = require("../lib/http");
+const { handleOptions, readJson, resolveBaseOrigin, resolvePublicOrigin, sendJson } = require("../lib/http");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -31,7 +31,7 @@ function buildPaymentCompleteUrl({
   datetime,
   source
 }, baseOrigin) {
-  const url = new URL("/return.html", baseOrigin || "https://backend-ymlj.vercel.app");
+  const url = new URL("/return.html", resolvePublicOrigin(baseOrigin || "https://backend-ymlj.vercel.app"));
   url.searchParams.set("subject", subject);
   url.searchParams.set("format", format);
   url.searchParams.set("tier", tier);
