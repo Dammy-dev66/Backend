@@ -84,6 +84,7 @@ module.exports = async function handler(req, res) {
     if (metadata.productID) successUrl.searchParams.set("productID", metadata.productID);
     if (metadata.datetime) successUrl.searchParams.set("datetime", metadata.datetime);
     if (metadata.couponCode) successUrl.searchParams.set("couponCode", metadata.couponCode);
+    if (metadata.productID) successUrl.searchParams.set("step", "2");
     successUrl.searchParams.set("source", "stripe");
     successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
 
@@ -133,6 +134,11 @@ module.exports = async function handler(req, res) {
       success_url: successUrl.toString(),
       cancel_url: cancelUrl.toString(),
       customer_email: metadata.email || undefined,
+      payment_intent_data: metadata.email
+        ? {
+            receipt_email: metadata.email
+          }
+        : undefined,
       metadata: {
         ...metadata,
         basePrice: String(basePrice),

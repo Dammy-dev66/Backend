@@ -35,7 +35,7 @@
 
     function buildNextUrl() {
       const next = new URL("/", location.origin);
-      ["subject", "format", "tier", "appointmentTypeID", "email", "orderID", "backUrl", "productID", "datetime", "appointmentCreated", "certificateCreated", "totalPrice", "couponCode"].forEach((key) => {
+      ["subject", "format", "tier", "appointmentTypeID", "email", "orderID", "backUrl", "productID", "datetime", "appointmentCreated", "certificateCreated", "totalPrice", "couponCode", "step"].forEach((key) => {
         if (params.has(key)) next.searchParams.set(key, params.get(key));
       });
       if (params.get("source")) {

@@ -375,7 +375,11 @@ async function resumeReturnedPackage() {
     setStep(2);
     loadMonth();
   } catch (error) {
-    $("step1Error").textContent = error.message;
+    if (state.packageMode === "redeem" || directToSessions) {
+      $("step2Error").textContent = error.message;
+    } else {
+      $("step1Error").textContent = error.message;
+    }
   } finally {
     $("continueChoiceBtn").disabled = false;
     updateChoiceUI();
