@@ -25,17 +25,17 @@
     </div>
 
     <nav class="progress" aria-label="Booking progress">
-      <div class="progress-step active" data-step="1"><span>01</span> Choose</div>
-      <div class="progress-step" data-step="2"><span>02</span> Time</div>
+      <div class="progress-step active" data-step="1"><span>01</span> Lesson</div>
+      <div class="progress-step" data-step="2"><span>02</span> Times</div>
       <div class="progress-step" data-step="3"><span>03</span> Details</div>
-      <div class="progress-step" data-step="4"><span>04</span> Finish</div>
+      <div class="progress-step" data-step="4"><span>04</span> Receipt</div>
     </nav>
 
     <main class="panel" id="app">
       <section class="step" id="step1">
-        <p class="eyebrow">Book A Class</p>
+        <p class="eyebrow">Book a class</p>
         <h1>Choose your lesson.</h1>
-        <p class="lede">Trial, single lesson, and package bookings all start here.</p>
+        <p class="lede">Pick the subject, lesson format, and session type before moving on.</p>
 
         <label class="field">
           <span>Subject</span>
@@ -56,29 +56,29 @@
 
         <div class="package-choice hidden" id="packageChoice">
           <button class="choice-card active" id="redeemPackageBtn" type="button">
-            <strong>I already have a package</strong>
-            <span>We’ll find it automatically from your email.</span>
+            <strong>I have a package</strong>
+            <span>We will match it from your email automatically.</span>
           </button>
           <button class="choice-card" id="buyPackageBtn" type="button">
-            <strong>I need to buy this package</strong>
-            <span>Pay securely in Fin's custom checkout, then return here to book.</span>
+            <strong>Buy this package now</strong>
+            <span>Pay securely, then come back here to choose your times.</span>
           </button>
         </div>
 
         <div id="certificateFields">
           <label class="field">
-            <span>Email used for the package</span>
+            <span>Package email</span>
             <input type="email" id="packageEmailInput" placeholder="you@example.com" autocomplete="email">
           </label>
-          <p class="field-hint">We’ll look up your package automatically. No code is needed.</p>
+          <p class="field-hint">We will look up your package automatically. No code is needed.</p>
         </div>
 
-        <button class="btn-primary" id="continueChoiceBtn" type="button">Continue</button>
+        <button class="btn-primary" id="continueChoiceBtn" type="button">See times</button>
         <p class="field-error" id="step1Error"></p>
       </section>
 
       <section class="step hidden" id="step2">
-        <p class="eyebrow" id="timeEyebrow">Pick A Time</p>
+        <p class="eyebrow" id="timeEyebrow">Pick a time</p>
         <h1 id="bookingTitle">Your lesson</h1>
         <div class="balance-pill hidden" id="balancePill">
           <span><strong id="selectedCount">0</strong> of <span id="totalCount">0</span> selected</span>
@@ -99,12 +99,12 @@
         <ul class="selected-list" id="selectedList"></ul>
 
         <button class="btn-secondary" id="backToChoiceBtn" type="button">Back</button>
-        <button class="btn-primary" id="toStep3Btn" type="button" disabled>Continue</button>
+        <button class="btn-primary" id="toStep3Btn" type="button" disabled>Go to details</button>
         <p class="field-error" id="step2Error"></p>
       </section>
 
       <section class="step hidden" id="step3">
-        <p class="eyebrow">Student Details</p>
+        <p class="eyebrow">Student details</p>
         <h1>Confirm details.</h1>
         <p class="lede" id="detailsLead"></p>
 
@@ -116,13 +116,13 @@
         <label class="field"><span>Notes or learning goals</span><textarea id="notes" rows="3"></textarea></label>
 
         <button class="btn-secondary" id="backToTimeBtn" type="button">Back</button>
-        <button class="btn-primary" id="finishBtn" type="button">Continue to custom checkout</button>
+        <button class="btn-primary" id="finishBtn" type="button">Open checkout</button>
         <p class="field-error" id="step3Error"></p>
       </section>
 
       <section class="step hidden" id="step4">
         <p class="eyebrow">Done</p>
-        <h1 id="finishTitle">Booking started.</h1>
+        <h1 id="finishTitle">Booking ready.</h1>
         <p class="lede" id="finishMessage"></p>
         <ul class="confirmed-list" id="confirmedList"></ul>
       </section>

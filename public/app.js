@@ -300,8 +300,8 @@ function updateChoiceUI() {
   $("packageChoice").classList.toggle("hidden", !tier.needsPackage);
   $("certificateFields").classList.toggle("hidden", !tier.needsPackage || state.packageMode === "buy");
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
-    ? "Continue to custom checkout"
-    : "Continue";
+    ? "Open checkout"
+    : "See times";
 }
 
 function setPackageMode(mode) {
@@ -336,7 +336,7 @@ async function checkoutBridgeUrl(details = {}) {
   });
 
   if (!ok || !data.ok || !data.url) {
-    throw new Error(data.error || "We could not open the custom checkout page.");
+    throw new Error(data.error || "We could not open the checkout page.");
   }
 
   return data.url;
@@ -368,7 +368,7 @@ async function resumeReturnedPackage() {
     state.remaining = resolved.remaining || 1;
     $("email").value = email;
     $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
-    $("timeEyebrow").textContent = "Redeem Sessions";
+    $("timeEyebrow").textContent = "Redeem package";
     $("balancePill").classList.remove("hidden");
     updateSelectedUI();
     setStep(2);
@@ -395,7 +395,7 @@ async function continueFromChoice() {
       backUrl: state.backUrl
     }));
     $("continueChoiceBtn").disabled = true;
-    $("continueChoiceBtn").textContent = "Opening custom checkout...";
+    $("continueChoiceBtn").textContent = "Opening checkout...";
     try {
       const checkoutUrl = await checkoutBridgeUrl({ email: $("packageEmailInput").value.trim() });
       openInNewTab(checkoutUrl);
@@ -440,7 +440,7 @@ async function continueFromChoice() {
   }
 
   $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
-  $("timeEyebrow").textContent = tier.needsPackage ? "Redeem Sessions" : "Pick A Time";
+  $("timeEyebrow").textContent = tier.needsPackage ? "Redeem package" : "Pick a time";
   $("balancePill").classList.toggle("hidden", !tier.needsPackage);
   updateSelectedUI();
   setStep(2);
@@ -558,9 +558,9 @@ function updateSelectedUI() {
 function goToDetails() {
   $("detailsLead").textContent = selectedTier().needsPackage
     ? `These details apply to the ${state.selected.length} package session(s) selected.`
-    : "These details will be carried into the custom checkout so the handoff stays quick.";
+    : "These details will carry into checkout so the handoff stays quick.";
   if (state.packageEmail && !$("email").value) $("email").value = state.packageEmail;
-  $("finishBtn").textContent = selectedTier().needsPackage ? "Confirm package sessions" : "Continue to custom checkout";
+  $("finishBtn").textContent = selectedTier().needsPackage ? "Confirm package sessions" : "Open checkout";
   setStep(3);
 }
 
@@ -582,8 +582,8 @@ function showCompletedBooking({ datetime }) {
       ? `${pending.selection[0].date} at ${pending.selection[0].time}`
       : "your lesson";
 
-  $("finishTitle").textContent = "Booking confirmed.";
-  $("finishMessage").textContent = `Your lesson on ${slotLabel} is confirmed and your Acuity email should arrive shortly.`;
+  $("finishTitle").textContent = "Booking ready.";
+  $("finishMessage").textContent = `Your lesson on ${slotLabel} is confirmed and your email receipt should arrive shortly.`;
 
   const items = Array.isArray(pending.selection) && pending.selection.length
     ? pending.selection
@@ -608,7 +608,7 @@ async function finishBooking() {
 
   $("step3Error").textContent = "";
   if (!details.firstName || !details.lastName || !details.email || !details.phone) {
-    $("step3Error").textContent = "Please fill in name, email, and phone.";
+    $("step3Error").textContent = "Please fill in the name, email, and phone fields.";
     return;
   }
 
@@ -623,7 +623,7 @@ async function finishBooking() {
       datetime: state.selected[0]?.datetime || ""
     }));
     $("finishBtn").disabled = true;
-    $("finishBtn").textContent = "Opening custom checkout...";
+    $("finishBtn").textContent = "Opening checkout...";
     try {
       const checkoutUrl = await checkoutBridgeUrl({
         ...details,
@@ -635,14 +635,14 @@ async function finishBooking() {
     } catch (error) {
       $("step3Error").textContent = error.message;
       $("finishBtn").disabled = false;
-      $("finishBtn").textContent = "Continue to custom checkout";
+      $("finishBtn").textContent = "Open checkout";
       return;
     }
     return;
   }
 
   $("finishBtn").disabled = true;
-  $("finishBtn").textContent = "Booking sessions...";
+  $("finishBtn").textContent = "Confirm sessions...";
   const confirmed = [];
   const failed = [];
 
@@ -676,7 +676,7 @@ async function finishBooking() {
   $("finishTitle").textContent = failed.length ? "Some sessions need attention." : "Sessions confirmed.";
   $("finishMessage").textContent = failed.length
     ? `${confirmed.length} of ${state.selected.length} sessions were confirmed. Please contact us for the remaining ${failed.length}.`
-    : "A confirmation for each session has been sent by email.";
+    : "A receipt has been sent for each confirmed session.";
   $("confirmedList").innerHTML = confirmed.map((item) =>
     `<li><strong>${item.date} at ${item.time}</strong><br><a href="${item.appointment?.confirmationPage || "#"}" target="_blank" rel="noopener">View appointment details</a></li>`
   ).join("");

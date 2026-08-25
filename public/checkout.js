@@ -88,13 +88,13 @@
   });
 
   paymentBtn.disabled = false;
-  paymentBtn.textContent = "Continue to payment";
+  paymentBtn.textContent = "Open Stripe checkout";
 
   paymentBtn.addEventListener("click", async () => {
     error.classList.add("hidden");
     error.textContent = "";
     paymentBtn.disabled = true;
-    paymentBtn.textContent = "Opening Stripe checkout...";
+      paymentBtn.textContent = "Opening Stripe checkout...";
 
     try {
       const res = await fetch("/api/create-stripe-session", {
@@ -131,7 +131,7 @@
       error.textContent = err.message;
       error.classList.remove("hidden");
       paymentBtn.disabled = false;
-      paymentBtn.textContent = "Continue to payment";
+      paymentBtn.textContent = "Open Stripe checkout";
     }
   });
 })();
