@@ -46,6 +46,11 @@ function buildPaymentCompleteUrl({
   if (datetime) url.searchParams.set("datetime", datetime);
   if (appointmentCreated) url.searchParams.set("appointmentCreated", "1");
   if (certificateCreated) url.searchParams.set("certificateCreated", "1");
+  if (certificateCreated || productID) {
+    url.searchParams.set("step", "2");
+  } else if (appointmentCreated) {
+    url.searchParams.set("step", "4");
+  }
   if (totalPrice !== undefined && totalPrice !== null && totalPrice !== "") {
     url.searchParams.set("totalPrice", String(totalPrice));
   }

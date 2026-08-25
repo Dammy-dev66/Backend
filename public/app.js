@@ -221,6 +221,7 @@ function populateSelectors() {
   const datetime = params.get("datetime") || "";
   const appointmentCreated = params.get("appointmentCreated") === "1";
   const certificateCreated = params.get("certificateCreated") === "1";
+  const directToSessions = params.get("step") === "2";
   const backUrl = params.get("backUrl") || saved.backUrl || storedBackUrl() || "";
 
   state.returnSource = source;
@@ -279,7 +280,7 @@ function populateSelectors() {
     return;
   }
 
-  if (selectedTier().needsPackage && (source === "acuity" || certificateCreated || productID)) {
+  if (selectedTier().needsPackage && (directToSessions || source === "acuity" || certificateCreated || productID)) {
     setPackageMode("redeem");
     queueMicrotask(() => resumeReturnedPackage());
   } else {
@@ -704,7 +705,11 @@ $("nextMonth").addEventListener("click", () => {
 });
 
 populateSelectors();
-setStep(1);
+if (new URLSearchParams(location.search).get("step") === "2") {
+  setStep(2);
+} else {
+  setStep(1);
+}
 
 window.addEventListener("storage", (event) => {
   if (event.key === "finbarReturnTarget" && event.newValue) {
