@@ -159,7 +159,7 @@
     fillEditor({
       code: "",
       percent: 10,
-      label: "10% off selected packages",
+      label: "",
       message: "",
       active: true,
       packageKeys: state.packageCatalog.map((item) => item.key)
@@ -179,7 +179,7 @@
       const normalized = {
         code: edited.code.toUpperCase(),
         percent: Math.max(1, Math.min(100, Math.round(edited.percent))),
-        label: edited.label || `${Math.round(edited.percent)}% off`,
+        label: edited.label || "",
         message: edited.message,
         active: edited.active,
         packageKeys: edited.packageKeys.length ? edited.packageKeys : state.packageCatalog.map((item) => item.key)

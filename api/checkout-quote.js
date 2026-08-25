@@ -45,7 +45,7 @@ module.exports = async function handler(req, res) {
       totalPrice: applied.totalPrice,
       couponCode: couponCode || "",
       couponValid,
-      couponMessage: packageAllowed ? (promo?.label || promo?.message || "") : "This coupon does not apply to the selected package.",
+      couponMessage: packageAllowed ? (promo?.message || "") : "This coupon does not apply to the selected package.",
       packageKey,
       packageLabel: resolvePackageLabel(format, tier)
     });
