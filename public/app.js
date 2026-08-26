@@ -29,8 +29,8 @@ const CLASS_DATA = [
 ];
 
 const FORMATS = [
-  { key: "oneToOne", label: "1:1 private lesson", price: { trial: 25, single: 50, pack6: 264, pack12: 456 } },
-  { key: "oneToTwo", label: "1:2 shared lesson", price: { trial: 35, single: 70, pack6: 360, pack12: 648 } }
+  { key: "oneToOne", label: "Tutor + one student", price: { trial: 25, single: 50, pack6: 264, pack12: 456 } },
+  { key: "oneToTwo", label: "Tutor + two students", price: { trial: 35, single: 70, pack6: 360, pack12: 648 } }
 ];
 
 const TIERS = [
@@ -162,6 +162,7 @@ async function resolvePackageEntitlement({ email, orderID, productID }) {
   const remaining = data.certificate?.remainingCounts?.[String(state.appointmentTypeID)]
     ?? data.certificate?.remaining
     ?? data.remaining
+    ?? selectedTier().sessions
     ?? 1;
 
   return {
@@ -221,6 +222,7 @@ function populateSelectors() {
   const datetime = params.get("datetime") || "";
   const appointmentCreated = params.get("appointmentCreated") === "1";
   const certificateCreated = params.get("certificateCreated") === "1";
+  const certificate = params.get("certificate") || saved.certificate || "";
   const directToSessions = params.get("step") === "2";
   const backUrl = params.get("backUrl") || saved.backUrl || storedBackUrl() || "";
 
@@ -269,6 +271,10 @@ function populateSelectors() {
     $("packageEmailInput").value = email;
   }
 
+  if (certificate) {
+    state.certificate = certificate;
+  }
+
   if (saved.packageEmail && !$("packageEmailInput").value) {
     $("packageEmailInput").value = saved.packageEmail;
   }
@@ -280,7 +286,20 @@ function populateSelectors() {
     return;
   }
 
-  if (selectedTier().needsPackage && (directToSessions || source === "acuity" || certificateCreated || productID)) {
+  if (selectedTier().needsPackage && (directToSessions || source === "acuity" || certificateCreated || productID || certificate)) {
+    if (certificate) {
+      state.packageMode = "redeem";
+      setPackageMode("redeem");
+      state.remaining = selectedTier().sessions;
+      $("email").value = state.packageEmail || email || "";
+      $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
+      $("timeEyebrow").textContent = "Redeem package";
+      $("balancePill").classList.remove("hidden");
+      updateSelectedUI();
+      setStep(2);
+      loadMonth();
+      return;
+    }
     setPackageMode("redeem");
     queueMicrotask(() => resumeReturnedPackage());
   } else {
@@ -301,8 +320,8 @@ function updateChoiceUI() {
   $("packageChoice").classList.toggle("hidden", !tier.needsPackage);
   $("certificateFields").classList.toggle("hidden", !tier.needsPackage || state.packageMode === "buy");
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
-    ? "Open checkout"
-    : "See times";
+    ? "Pay"
+    : "Select dates/times";
 }
 
 function setPackageMode(mode) {
@@ -330,6 +349,7 @@ async function checkoutBridgeUrl(details = {}) {
       lastName: details.lastName || "",
       phone: details.phone || "",
       studentName: details.studentName || "",
+      studentName2: details.studentName2 || "",
       studentFieldID: STUDENT_NAME_FIELD_ID,
       notes: details.notes || "",
       timezone: details.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -366,7 +386,7 @@ async function resumeReturnedPackage() {
     setPackageMode("redeem");
     state.packageEmail = email;
     state.certificate = resolved.certificate;
-    state.remaining = resolved.remaining || 1;
+    state.remaining = resolved.remaining || selectedTier().sessions || 1;
     $("email").value = email;
     $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
     $("timeEyebrow").textContent = "Redeem package";
@@ -400,7 +420,7 @@ async function continueFromChoice() {
       backUrl: state.backUrl
     }));
     $("continueChoiceBtn").disabled = true;
-    $("continueChoiceBtn").textContent = "Opening checkout...";
+    $("continueChoiceBtn").textContent = "Paying...";
     try {
       const checkoutUrl = await checkoutBridgeUrl({ email: $("packageEmailInput").value.trim() });
       openInNewTab(checkoutUrl);
@@ -432,7 +452,7 @@ async function continueFromChoice() {
         productID: state.productID
       });
       state.certificate = resolved.certificate;
-      state.remaining = resolved.remaining || 1;
+      state.remaining = resolved.remaining || selectedTier().sessions || 1;
       $("email").value = state.packageEmail;
     } catch (error) {
       $("step1Error").textContent = error.message;
@@ -561,11 +581,15 @@ function updateSelectedUI() {
 }
 
 function goToDetails() {
+  const isTwoStudentFormat = state.formatKey === "oneToTwo";
+  $("studentTwoGroup").classList.toggle("hidden", !isTwoStudentFormat);
   $("detailsLead").textContent = selectedTier().needsPackage
     ? `These details apply to the ${state.selected.length} package session(s) selected.`
-    : "These details will carry into checkout so the handoff stays quick.";
+    : isTwoStudentFormat
+      ? "Please add both student names so the booking details stay complete."
+      : "These details will carry into checkout so the handoff stays quick.";
   if (state.packageEmail && !$("email").value) $("email").value = state.packageEmail;
-  $("finishBtn").textContent = selectedTier().needsPackage ? "Confirm package sessions" : "Open checkout";
+  $("finishBtn").textContent = selectedTier().needsPackage ? "Confirm package sessions" : "Pay";
   setStep(3);
 }
 
@@ -608,12 +632,17 @@ async function finishBooking() {
     email: $("email").value.trim(),
     phone: $("phone").value.trim(),
     studentName: $("studentName").value.trim(),
+    studentName2: $("studentName2").value.trim(),
     notes: $("notes").value.trim()
   };
 
   $("step3Error").textContent = "";
   if (!details.firstName || !details.lastName || !details.email || !details.phone) {
     $("step3Error").textContent = "Please fill in the name, email, and phone fields.";
+    return;
+  }
+  if (state.formatKey === "oneToTwo" && !details.studentName2) {
+    $("step3Error").textContent = "Please add the second student name for the 1:2 lesson.";
     return;
   }
 
@@ -628,7 +657,7 @@ async function finishBooking() {
       datetime: state.selected[0]?.datetime || ""
     }));
     $("finishBtn").disabled = true;
-    $("finishBtn").textContent = "Opening checkout...";
+    $("finishBtn").textContent = "Paying...";
     try {
       const checkoutUrl = await checkoutBridgeUrl({
         ...details,
@@ -640,7 +669,7 @@ async function finishBooking() {
     } catch (error) {
       $("step3Error").textContent = error.message;
       $("finishBtn").disabled = false;
-      $("finishBtn").textContent = "Open checkout";
+      $("finishBtn").textContent = "Pay";
       return;
     }
     return;
@@ -650,6 +679,10 @@ async function finishBooking() {
   $("finishBtn").textContent = "Confirm sessions...";
   const confirmed = [];
   const failed = [];
+  const packageNotes = [
+    details.notes,
+    details.studentName2 ? `Student 2: ${details.studentName2}` : ""
+  ].filter(Boolean).join("\n");
 
   for (const slot of state.selected) {
     const { ok, data } = await api("/api/book-with-package", {
@@ -666,7 +699,7 @@ async function finishBooking() {
         orderID: state.returnOrderID || undefined,
         productID: state.productID || undefined,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        notes: details.notes,
+        notes: packageNotes,
         fields: details.studentName ? [{ id: STUDENT_NAME_FIELD_ID, value: details.studentName }] : []
       })
     });
@@ -697,7 +730,6 @@ $("continueChoiceBtn").addEventListener("click", continueFromChoice);
 $("backToChoiceBtn").addEventListener("click", () => setStep(1));
 $("toStep3Btn").addEventListener("click", goToDetails);
 $("backToTimeBtn").addEventListener("click", () => setStep(2));
-$("changeLessonLink").addEventListener("click", () => setStep(1));
 $("finishBtn").addEventListener("click", finishBooking);
 $("prevMonth").addEventListener("click", () => {
   state.currentMonth.setMonth(state.currentMonth.getMonth() - 1);

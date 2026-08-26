@@ -36,6 +36,7 @@ function resolveMetadata(body) {
     lastName: cleanString(body.lastName),
     phone: cleanString(body.phone),
     studentName: cleanString(body.studentName),
+    studentName2: cleanString(body.studentName2),
     studentFieldID: cleanString(body.studentFieldID),
     notes: cleanString(body.notes),
     timezone: cleanString(body.timezone),
@@ -87,6 +88,7 @@ module.exports = async function handler(req, res) {
     if (metadata.productID) successUrl.searchParams.set("step", "2");
     successUrl.searchParams.set("source", "stripe");
     successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+    if (metadata.studentName2) successUrl.searchParams.set("studentName2", metadata.studentName2);
 
     const cancelUrl = new URL("/checkout.html", origin);
     Object.entries({
@@ -103,6 +105,7 @@ module.exports = async function handler(req, res) {
       lastName: metadata.lastName,
       phone: metadata.phone,
       studentName: metadata.studentName,
+      studentName2: metadata.studentName2,
       studentFieldID: metadata.studentFieldID,
       notes: metadata.notes,
       timezone: metadata.timezone,

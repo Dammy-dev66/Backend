@@ -16,6 +16,7 @@
   const backUrl = params.get("backUrl") || "";
   const productID = params.get("productID") || "";
   const returnUrl = params.get("returnUrl") || "";
+  const studentName2 = params.get("studentName2") || "";
   const currency = "EUR";
   let currentQuote = null;
 
@@ -114,6 +115,7 @@
           lastName: params.get("lastName") || "",
           phone: params.get("phone") || "",
           studentName: params.get("studentName") || "",
+          studentName2: params.get("studentName2") || "",
           studentFieldID: params.get("studentFieldID") || "",
           notes: params.get("notes") || "",
           timezone: params.get("timezone") || "",

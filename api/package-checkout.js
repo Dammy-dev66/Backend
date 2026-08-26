@@ -29,6 +29,7 @@ function buildPackageCheckoutUrl({
   lastName,
   phone,
   studentName,
+  studentName2,
   studentFieldID,
   notes,
   timezone
@@ -60,6 +61,7 @@ function buildPackageCheckoutUrl({
   if (lastName) url.searchParams.set("lastName", lastName);
   if (phone) url.searchParams.set("phone", phone);
   if (studentName) url.searchParams.set("studentName", studentName);
+  if (studentName2) url.searchParams.set("studentName2", studentName2);
   if (studentFieldID) url.searchParams.set("studentFieldID", studentFieldID);
   if (notes) url.searchParams.set("notes", notes);
   if (timezone) url.searchParams.set("timezone", timezone);
@@ -96,6 +98,7 @@ module.exports = async function handler(req, res) {
       lastName: cleanString(body.lastName),
       phone: cleanString(body.phone),
       studentName: cleanString(body.studentName),
+      studentName2: cleanString(body.studentName2),
       studentFieldID: cleanString(body.studentFieldID),
       notes: cleanString(body.notes),
       timezone: cleanString(body.timezone)

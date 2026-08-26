@@ -19,8 +19,9 @@ This project keeps the student inside the custom Fin journey instead of sending 
 - `public/return.html` is the return bridge back into the booking flow after payment.
 - `api/package-checkout.js` builds the custom checkout URL.
 - `api/create-stripe-session.js` creates the live Stripe Checkout session.
-- `api/stripe-complete.js` verifies the paid Stripe session and finishes the Acuity handoff.
-- `api/payment-complete.js` turns a completed package payment into the Acuity handoff URL and creates the entitlement when package details are present.
+- `api/webhooks/stripe.js` receives Stripe's checkout completion event and sends the Make-powered receipt email for package purchases.
+- `api/stripe-complete.js` verifies the paid Stripe session, finishes the Acuity handoff, and sends the booking confirmation email for direct paid bookings.
+- `api/payment-complete.js` turns a completed package payment into the Acuity handoff URL and sends the confirmation email for the local/mock payment path when booking details are present.
 - `api/admin/coupons.js` lets Fin manage coupon rules from a protected admin panel.
 - `api/resolve-package.js` finds the certificate for a package by email, order, or product.
 - `api/book-with-package.js` validates the certificate and books the appointment in Acuity.
@@ -44,6 +45,8 @@ ACUITY_API_KEY=rotate_and_add_your_acuity_api_key_here
 ALLOWED_ORIGINS=https://your-carrd-site.example,https://your-custom-domain.example
 STRIPE_SECRET_KEY=sk_test_or_live_key
 STRIPE_WEBHOOK_SECRET=whsec_optional_until_webhooks_are_enabled
+FINBAR_RECEIPT_COPY_TO=fin@yourdomain.com
+MAKE_RECEIPT_WEBHOOK_URL=https://hook.eu1.make.com/your-webhook-id
 FINBAR_ADMIN_KEY=choose_a_long_random_admin_key
 BLOB_READ_WRITE_TOKEN=vercel_blob_token_when_connected
 CUSTOM_PROMO_CODES={"FIN10":{"percent":10,"label":"10% off","packageKeys":["oneToOne:pack6","oneToTwo:pack6"]}}
@@ -53,6 +56,16 @@ ALLOW_FULL_PRICE_FALLBACK=false
 ```
 
 `STRIPE_SECRET_KEY` is required for the live payment checkout.
+
+`MAKE_RECEIPT_WEBHOOK_URL` sends the receipt payload to Make, where the actual email is sent for both package receipts and booking confirmations.
+
+`FINBAR_RECEIPT_COPY_TO` sends Fin a copy of the same receipt email so both the customer and Fin keep the booking link.
+
+`STRIPE_WEBHOOK_SECRET` is used by `/api/webhooks/stripe` to verify Stripe's signed event payload.
+
+In Stripe, point the checkout completion webhook to:
+
+`https://your-project.vercel.app/api/webhooks/stripe`
 
 `FINBAR_ADMIN_KEY` protects the coupon admin panel at `/admin.html`.
 

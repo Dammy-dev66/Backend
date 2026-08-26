@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Return To Booking - Finbar B. Elite Tutoring</title>
+  <title>Payment Complete - Finbar B. Elite Tutoring</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -16,10 +16,12 @@
       </div>
     </header>
     <main class="panel">
-      <p class="eyebrow">Payment Complete</p>
-      <h1>Payment complete.</h1>
-      <p class="lede">You are being sent straight to the sessions page now to pick your time slots. If you want to book more later, the booking link will also be in your receipt email.</p>
-      <a class="btn-link" id="bookLink" href="/">Go to booking</a>
+      <p class="eyebrow">Payment complete</p>
+      <h1 id="confirmTitle">Thanks - your payment was received.</h1>
+      <p class="lede" id="confirmLead">Your confirmation email is on the way, and it includes the link to book sessions again later if you need it.</p>
+      <div class="summary" id="confirmSummary"></div>
+      <p class="field-error" id="confirmError"></p>
+      <a class="btn-link" id="bookLink" href="/">Go to sessions</a>
     </main>
   </div>
   <script>
@@ -31,93 +33,87 @@
         return {};
       }
     })();
-    const storedBackUrl = localStorage.getItem("finbarBackUrl") || "";
+    const title = document.getElementById("confirmTitle");
+    const lead = document.getElementById("confirmLead");
+    const summary = document.getElementById("confirmSummary");
+    const error = document.getElementById("confirmError");
+    const bookLink = document.getElementById("bookLink");
 
-    function buildNextUrl() {
-      const next = new URL("/", location.origin);
-      ["subject", "format", "tier", "appointmentTypeID", "email", "orderID", "backUrl", "productID", "datetime", "appointmentCreated", "certificateCreated", "totalPrice", "couponCode", "step"].forEach((key) => {
-        if (params.has(key)) next.searchParams.set(key, params.get(key));
-      });
-      if (params.get("source")) {
-        next.searchParams.set("source", params.get("source"));
-      } else {
-        next.searchParams.set("source", "acuity");
-      }
-      ["subject", "format", "tier", "appointmentTypeID", "packageEmail", "backUrl"].forEach((key) => {
-        if (!next.searchParams.has(key) && saved[key]) next.searchParams.set(key, saved[key]);
-      });
-      if (!next.searchParams.has("backUrl") && storedBackUrl) {
-        next.searchParams.set("backUrl", storedBackUrl);
-      }
-      return next;
-    }
+    const subject = params.get("subject") || saved.subject || "your lesson";
+    const format = params.get("format") || saved.format || "";
+    const tier = params.get("tier") || saved.tier || "";
+    const appointmentTypeID = params.get("appointmentTypeID") || saved.appointmentTypeID || "";
+    const email = params.get("email") || saved.packageEmail || "";
+    const backUrl = params.get("backUrl") || saved.backUrl || localStorage.getItem("finbarBackUrl") || "";
+    const productID = params.get("productID") || "";
+    const couponCode = params.get("couponCode") || "";
+    const totalPrice = params.get("totalPrice") || "";
+    const source = params.get("source") || "stripe";
+    const studentName2 = params.get("studentName2") || saved.studentName2 || "";
 
-    async function finishStripeReturn() {
-      const next = buildNextUrl();
-      const sessionId = params.get("session_id");
-      if (sessionId) {
-        const res = await fetch("/api/stripe-complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            session_id: sessionId,
-            subject: next.searchParams.get("subject") || params.get("subject") || "",
-            format: next.searchParams.get("format") || params.get("format") || "",
-            tier: next.searchParams.get("tier") || params.get("tier") || "",
-            appointmentTypeID: next.searchParams.get("appointmentTypeID") || params.get("appointmentTypeID") || "",
-            email: next.searchParams.get("email") || params.get("email") || "",
-            productID: next.searchParams.get("productID") || params.get("productID") || "",
-            backUrl: next.searchParams.get("backUrl") || params.get("backUrl") || "",
-            datetime: next.searchParams.get("datetime") || params.get("datetime") || "",
-            couponCode: next.searchParams.get("couponCode") || params.get("couponCode") || "",
-            source: params.get("source") || "stripe"
-          })
+    const formatLabel = {
+      oneToOne: "Tutor + one student",
+      oneToTwo: "Tutor + two students"
+    }[format] || format;
+
+    const target = new URL("/", location.origin);
+    if (subject) target.searchParams.set("subject", subject);
+    if (format) target.searchParams.set("format", format);
+    if (tier) target.searchParams.set("tier", tier);
+    if (appointmentTypeID) target.searchParams.set("appointmentTypeID", appointmentTypeID);
+    if (email) target.searchParams.set("email", email);
+    if (backUrl) target.searchParams.set("backUrl", backUrl);
+    if (couponCode) target.searchParams.set("couponCode", couponCode);
+    if (studentName2) target.searchParams.set("studentName2", studentName2);
+    target.searchParams.set("source", productID ? "receipt" : source);
+    target.searchParams.set("step", productID ? "2" : "1");
+
+    bookLink.href = target.toString();
+    bookLink.textContent = productID ? "Go to sessions" : "Book again";
+
+    summary.innerHTML = `
+      <strong>${subject}</strong><br>
+      ${formatLabel || "Booking"}${tier ? ` - ${tier}` : ""}
+      ${totalPrice ? `<br><span class="muted">Total: EUR ${Number(totalPrice).toFixed(2)}</span>` : ""}
+    `;
+
+    if (params.get("session_id")) {
+      fetch("/api/stripe-complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: params.get("session_id"),
+          subject,
+          format,
+          tier,
+          appointmentTypeID,
+          email,
+          productID,
+          backUrl,
+          datetime: params.get("datetime") || "",
+          couponCode,
+          source,
+          studentName2
+        })
+      })
+        .then((res) => res.json().catch(() => ({})))
+        .then((data) => {
+          if (!data || !data.ok) {
+            throw new Error(data?.error || "We confirmed payment, but could not finish the booking handoff.");
+          }
+
+          if (data.appointmentCreated) {
+            title.textContent = "Your lesson is confirmed.";
+            lead.textContent = "Use the button below to go to the sessions page when you are ready. The same link is also in your email.";
+          } else if (data.certificateCreated) {
+            title.textContent = "Your package is ready.";
+            lead.textContent = "Use the button below to go to the sessions page and choose your times. The same link is also in your email.";
+          }
+        })
+        .catch((err) => {
+          error.textContent = err.message;
         });
-
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.ok && data.url) {
-          next.href = data.url;
-        }
-      }
-
-      document.getElementById("bookLink").href = next.toString();
-
-      const meta = document.createElement("meta");
-      meta.httpEquiv = "refresh";
-      meta.content = `0;url=${next.toString()}`;
-      document.head.appendChild(meta);
-
-      localStorage.setItem("finbarReturnTarget", next.toString());
-
-      if (window.opener && !window.opener.closed) {
-        try {
-          window.opener.location.replace(next.toString());
-          window.opener.focus();
-        } catch (error) {
-          // The opener path is best-effort only.
-        }
-      }
-
-      try {
-        window.location.replace(next.toString());
-      } catch (error) {
-        // Meta refresh is the fallback if direct navigation is blocked.
-      }
-
-      setTimeout(() => {
-        try {
-          window.close();
-        } catch (error) {
-          // If the browser refuses to close the tab, the page should already be on the custom booking route.
-        }
-      }, 0);
     }
-
-    finishStripeReturn().catch(() => {
-      const next = buildNextUrl();
-      document.getElementById("bookLink").href = next.toString();
-      location.replace(next.toString());
-    });
   </script>
 </body>
 </html>

@@ -20,8 +20,7 @@
     </header>
 
     <div class="bridge-links hidden" id="bridgeLinks">
-      <a class="bridge-link" id="backToCarrdLink" href="#" rel="noopener">Back to Carrd</a>
-      <button class="bridge-link button-link" id="changeLessonLink" type="button">Change lesson</button>
+      <a class="bridge-link" id="backToCarrdLink" href="#" rel="noopener">Back to site</a>
     </div>
 
     <nav class="progress" aria-label="Booking progress">
@@ -73,7 +72,7 @@
           <p class="field-hint">We will look up your package automatically. No code is needed.</p>
         </div>
 
-        <button class="btn-primary" id="continueChoiceBtn" type="button">See times</button>
+        <button class="btn-primary" id="continueChoiceBtn" type="button">Select dates/times</button>
         <p class="field-error" id="step1Error"></p>
       </section>
 
@@ -81,7 +80,8 @@
         <p class="eyebrow" id="timeEyebrow">Pick a time</p>
         <h1 id="bookingTitle">Your lesson</h1>
         <div class="balance-pill hidden" id="balancePill">
-          <span><strong id="selectedCount">0</strong> of <span id="totalCount">0</span> selected</span>
+          <span><strong id="selectedCount">0</strong> of <span id="totalCount">0</span> sessions selected</span>
+          <div class="balance-copy" id="balanceHint">Pick session times until the package is filled.</div>
           <div class="balance-track"><div class="balance-fill" id="balanceFill"></div></div>
         </div>
 
@@ -112,11 +112,14 @@
         <label class="field"><span>Parent / guardian last name</span><input id="lastName" type="text" autocomplete="family-name"></label>
         <label class="field"><span>Email</span><input id="email" type="email" autocomplete="email"></label>
         <label class="field"><span>Phone</span><input id="phone" type="tel" autocomplete="tel"></label>
-        <label class="field"><span>Student name</span><input id="studentName" type="text"></label>
+        <label class="field"><span>Student 1 name</span><input id="studentName" type="text"></label>
+        <div class="hidden" id="studentTwoGroup">
+          <label class="field"><span>Student 2 name</span><input id="studentName2" type="text"></label>
+        </div>
         <label class="field"><span>Notes or learning goals</span><textarea id="notes" rows="3"></textarea></label>
 
         <button class="btn-secondary" id="backToTimeBtn" type="button">Back</button>
-        <button class="btn-primary" id="finishBtn" type="button">Open checkout</button>
+        <button class="btn-primary btn-pay" id="finishBtn" type="button">Pay</button>
         <p class="field-error" id="step3Error"></p>
       </section>
 

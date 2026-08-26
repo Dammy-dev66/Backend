@@ -60,9 +60,9 @@ img.brand-mark {
 .brand-kicker {
   margin-top: 3px;
   color: var(--gold);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: .22em;
+  letter-spacing: .16em;
   text-transform: uppercase;
 }
 
@@ -252,6 +252,11 @@ h1 {
   color: var(--panel);
 }
 
+.btn-pay {
+  background: #dda31d;
+  color: #0a3d91;
+}
+
 .btn-secondary {
   background: transparent;
   color: var(--ink);
@@ -275,6 +280,13 @@ h1 {
   height: 4px;
   background: #efe9dd;
   margin-top: 10px;
+}
+
+.balance-copy {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .balance-fill {
@@ -304,12 +316,13 @@ h1 {
 
 .date-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(136px, 146px));
   gap: 12px;
   width: 100%;
   max-width: 620px;
   margin: 0 auto;
   align-items: start;
+  justify-content: center;
   padding: 4px 0 8px;
 }
 
@@ -328,6 +341,7 @@ h1 {
   padding: 14px 12px;
   min-height: 100%;
   width: 100%;
+  min-width: 136px;
 }
 
 .schedule-day-head {

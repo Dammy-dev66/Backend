@@ -20,6 +20,7 @@
   const lastName = params.get("lastName") || "";
   const phone = params.get("phone") || "";
   const studentName = params.get("studentName") || "";
+  const studentName2 = params.get("studentName2") || "";
   const studentFieldID = params.get("studentFieldID") || "";
   const notes = params.get("notes") || "";
   const timezone = params.get("timezone") || "";
@@ -52,6 +53,7 @@
         lastName,
         phone,
         studentName,
+        studentName2,
         studentFieldID,
         notes,
         timezone,

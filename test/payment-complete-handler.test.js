@@ -38,6 +38,7 @@ test("payment completion creates a certificate when Acuity creds and productID a
       calls.push(payload);
       return { id: "CERT-1" };
     },
+    extractCertificateCode: () => "CERT-1",
     createAppointment: async () => ({ id: "APT-IGNORED" })
   });
 
@@ -80,6 +81,7 @@ test("payment completion creates an appointment for direct bookings after paymen
       appointmentCalls.push(payload);
       return { id: "APT-1" };
     },
+    extractCertificateCode: () => "CERT-NOT-USED",
     createCertificate: async () => {
       throw new Error("certificate should not be created for direct bookings");
     }

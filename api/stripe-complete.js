@@ -1,7 +1,8 @@
-const { createAppointment, createCertificate } = require("../lib/acuity");
+const { createAppointment, createCertificate, extractCertificateCode } = require("../lib/acuity");
 const { getStripeClient } = require("../lib/stripe");
 const { handleOptions, readJson, resolveBaseOrigin, sendJson } = require("../lib/http");
 const { buildPaymentCompleteUrl } = require("./payment-complete");
+const { sendBookingConfirmationEmails } = require("../lib/receipt-email");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -49,21 +50,25 @@ module.exports = async function handler(req, res) {
     const notes = cleanString(body.notes || metadata.notes);
     const timezone = cleanString(body.timezone || metadata.timezone);
     const studentName = cleanString(body.studentName || metadata.studentName);
+    const studentName2 = cleanString(body.studentName2 || metadata.studentName2);
     const studentFieldID = cleanString(body.studentFieldID || metadata.studentFieldID);
     const couponCode = cleanString(body.couponCode || metadata.couponCode);
     const backUrl = cleanString(body.backUrl || metadata.backUrl);
     const orderID = cleanString(body.orderID || session.id);
     const totalPrice = cleanString(body.totalPrice || metadata.totalPrice || session.amount_total / 100);
     const acuityReady = process.env.ACUITY_USER_ID && process.env.ACUITY_API_KEY;
+    let certificateCode = cleanString(body.certificate || metadata.certificate);
 
     let certificateCreated = false;
     let appointmentCreated = false;
+    let receiptEmail = null;
 
     if (productID && email && acuityReady) {
-      await createCertificate({
+      const certificateResponse = await createCertificate({
         productID,
         email
       });
+      certificateCode = certificateCode || extractCertificateCode(certificateResponse);
       certificateCreated = true;
     }
 
@@ -89,6 +94,23 @@ module.exports = async function handler(req, res) {
         fields
       });
       appointmentCreated = true;
+
+      receiptEmail = await sendBookingConfirmationEmails({
+        customerEmail: email,
+        copyEmail: process.env.FINBAR_RECEIPT_COPY_TO,
+        origin: resolveBaseOrigin(req),
+        subject,
+        format,
+        tier,
+        appointmentTypeID,
+        productID,
+        certificate: certificateCode,
+        orderID,
+        backUrl,
+        couponCode,
+        totalPrice,
+        recipientName: firstName || email
+      });
     }
 
     const url = buildPaymentCompleteUrl({
@@ -98,6 +120,7 @@ module.exports = async function handler(req, res) {
       appointmentTypeID,
       email,
       productID,
+      certificate: certificateCode,
       backUrl,
       orderID,
       couponCode,
@@ -106,14 +129,16 @@ module.exports = async function handler(req, res) {
       totalPrice,
       datetime,
       source: "stripe",
-      sessionID
+      sessionID,
+      studentName2
     }, resolveBaseOrigin(req));
 
     return sendJson(req, res, 200, {
       ok: true,
       url,
       certificateCreated,
-      appointmentCreated
+      appointmentCreated,
+      receiptEmail
     });
   } catch (error) {
     return sendJson(req, res, error.statusCode || 500, {
