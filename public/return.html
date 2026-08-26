@@ -18,7 +18,7 @@
     <main class="panel">
       <p class="eyebrow">Payment complete</p>
       <h1 id="confirmTitle">Thanks - your payment was received.</h1>
-      <p class="lede" id="confirmLead">Your confirmation email is on the way, and it includes the link to book sessions again later if you need it.</p>
+      <p class="lede" id="confirmLead">Your confirmation email is on the way. The button below takes you straight to the sessions page if you want to book or add more times later.</p>
       <div class="summary" id="confirmSummary"></div>
       <p class="field-error" id="confirmError"></p>
       <a class="btn-link" id="bookLink" href="/">Go to sessions</a>
@@ -49,7 +49,7 @@
     const couponCode = params.get("couponCode") || "";
     const totalPrice = params.get("totalPrice") || "";
     const source = params.get("source") || "stripe";
-    const studentName2 = params.get("studentName2") || saved.studentName2 || "";
+    const bookingStep = productID ? "2" : "1";
 
     const formatLabel = {
       oneToOne: "Tutor + one student",
@@ -64,9 +64,8 @@
     if (email) target.searchParams.set("email", email);
     if (backUrl) target.searchParams.set("backUrl", backUrl);
     if (couponCode) target.searchParams.set("couponCode", couponCode);
-    if (studentName2) target.searchParams.set("studentName2", studentName2);
     target.searchParams.set("source", productID ? "receipt" : source);
-    target.searchParams.set("step", productID ? "2" : "1");
+    target.searchParams.set("step", bookingStep);
 
     bookLink.href = target.toString();
     bookLink.textContent = productID ? "Go to sessions" : "Book again";
@@ -77,42 +76,8 @@
       ${totalPrice ? `<br><span class="muted">Total: EUR ${Number(totalPrice).toFixed(2)}</span>` : ""}
     `;
 
-    if (params.get("session_id")) {
-      fetch("/api/stripe-complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: params.get("session_id"),
-          subject,
-          format,
-          tier,
-          appointmentTypeID,
-          email,
-          productID,
-          backUrl,
-          datetime: params.get("datetime") || "",
-          couponCode,
-          source,
-          studentName2
-        })
-      })
-        .then((res) => res.json().catch(() => ({})))
-        .then((data) => {
-          if (!data || !data.ok) {
-            throw new Error(data?.error || "We confirmed payment, but could not finish the booking handoff.");
-          }
-
-          if (data.appointmentCreated) {
-            title.textContent = "Your lesson is confirmed.";
-            lead.textContent = "Use the button below to go to the sessions page when you are ready. The same link is also in your email.";
-          } else if (data.certificateCreated) {
-            title.textContent = "Your package is ready.";
-            lead.textContent = "Use the button below to go to the sessions page and choose your times. The same link is also in your email.";
-          }
-        })
-        .catch((err) => {
-          error.textContent = err.message;
-        });
+    if (!params.get("session_id")) {
+      error.textContent = "We could not confirm the payment session in this tab, but the button still takes you back to the custom flow.";
     }
   </script>
 </body>
