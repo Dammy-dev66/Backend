@@ -297,7 +297,7 @@ function populateSelectors() {
       $("balancePill").classList.remove("hidden");
       updateSelectedUI();
       setStep(2);
-      loadMonth();
+      loadMonth({ autoAdvance: true });
       return;
     }
     setPackageMode("redeem");
@@ -393,7 +393,7 @@ async function resumeReturnedPackage() {
     $("balancePill").classList.remove("hidden");
     updateSelectedUI();
     setStep(2);
-    loadMonth();
+    loadMonth({ autoAdvance: true });
   } catch (error) {
     if (state.packageMode === "redeem" || directToSessions) {
       $("step2Error").textContent = error.message;
@@ -469,34 +469,58 @@ async function continueFromChoice() {
   $("balancePill").classList.toggle("hidden", !tier.needsPackage);
   updateSelectedUI();
   setStep(2);
-  loadMonth();
+  loadMonth({ autoAdvance: true });
 }
 
-async function loadMonth() {
-  $("monthLabel").textContent = state.currentMonth.toLocaleString("en-US", { month: "long", year: "numeric" });
-  $("dateGrid").innerHTML = `<p class="muted">Loading available times...</p>`;
-
-  const path = `/api/availability-dates?appointmentTypeID=${state.appointmentTypeID}&month=${monthKey(state.currentMonth)}&calendarID=${CALENDAR_ID}`;
-  const { ok, data } = await api(path);
+async function loadMonth({ autoAdvance = false } = {}) {
   const grid = $("dateGrid");
-  grid.innerHTML = "";
+  const originalMonth = new Date(state.currentMonth);
+  const maxAttempts = autoAdvance ? 12 : 1;
+  let attempt = 0;
 
-  if (!ok || !data.ok || !Array.isArray(data.dates) || data.dates.length === 0) {
-    grid.innerHTML = `<p class="muted">No available times this month. Try another month.</p>`;
+  while (attempt < maxAttempts) {
+    const monthToLoad = new Date(state.currentMonth);
+    $("monthLabel").textContent = monthToLoad.toLocaleString("en-US", { month: "long", year: "numeric" });
+    grid.innerHTML = `<p class="muted">Loading available times...</p>`;
+
+    const path = `/api/availability-dates?appointmentTypeID=${state.appointmentTypeID}&month=${monthKey(monthToLoad)}&calendarID=${CALENDAR_ID}`;
+    const { ok, data } = await api(path);
+    grid.innerHTML = "";
+
+    if (!ok || !data.ok || !Array.isArray(data.dates) || data.dates.length === 0) {
+      if (autoAdvance) {
+        state.currentMonth.setMonth(state.currentMonth.getMonth() + 1);
+        attempt += 1;
+        continue;
+      }
+
+      grid.innerHTML = `<p class="muted">No available times this month. Try another month.</p>`;
+      return;
+    }
+
+    const schedule = await Promise.all(data.dates.map(async (item) => {
+      const timesPath = `/api/availability-times?appointmentTypeID=${state.appointmentTypeID}&date=${item.date}&calendarID=${CALENDAR_ID}`;
+      const timesRes = await api(timesPath);
+      return {
+        date: item.date,
+        times: timesRes.ok && timesRes.data && Array.isArray(timesRes.data.times) ? timesRes.data.times : []
+      };
+    }));
+
+    const hasAnyTimes = schedule.some((item) => Array.isArray(item.times) && item.times.length > 0);
+    if (autoAdvance && !hasAnyTimes) {
+      state.currentMonth.setMonth(state.currentMonth.getMonth() + 1);
+      attempt += 1;
+      continue;
+    }
+
+    state.scheduleData = schedule;
+    renderSchedule();
     return;
   }
 
-  const schedule = await Promise.all(data.dates.map(async (item) => {
-    const timesPath = `/api/availability-times?appointmentTypeID=${state.appointmentTypeID}&date=${item.date}&calendarID=${CALENDAR_ID}`;
-    const timesRes = await api(timesPath);
-    return {
-      date: item.date,
-      times: timesRes.ok && timesRes.data && Array.isArray(timesRes.data.times) ? timesRes.data.times : []
-    };
-  }));
-
-  state.scheduleData = schedule;
-  renderSchedule();
+  state.currentMonth = originalMonth;
+  grid.innerHTML = `<p class="muted">No available times this month. Try another month.</p>`;
 }
 
 function renderSchedule() {

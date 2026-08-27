@@ -5,7 +5,8 @@ const {
   buildReceiptHtml,
   buildReceiptPayload,
   buildReceiptSubject,
-  buildSessionsLink
+  buildSessionsLink,
+  sendBookingConfirmationEmails
 } = require("../lib/receipt-email");
 
 test("receipt email link returns the student to step 2 with package context", () => {
@@ -71,4 +72,45 @@ test("receipt payload keeps the customer and copy recipient together", () => {
   assert.equal(payload.receipt.certificate, "CERT-123");
   assert.match(payload.html, /Go to sessions/);
   assert.match(payload.text, /Go to sessions:/);
+});
+
+test("booking confirmation falls back to the Make webhook when the env var is missing", async () => {
+  const originalWebhook = process.env.MAKE_RECEIPT_WEBHOOK_URL;
+  delete process.env.MAKE_RECEIPT_WEBHOOK_URL;
+
+  const calls = [];
+  const originalFetch = global.fetch;
+  global.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      text: async () => "ok"
+    };
+  };
+
+  try {
+    const result = await sendBookingConfirmationEmails({
+      customerEmail: "student@example.com",
+      copyEmail: "fin@example.com",
+      origin: "https://backend-ymlj.vercel.app",
+      subject: "AP Psychology",
+      format: "oneToOne",
+      tier: "trial",
+      appointmentTypeID: "95402082",
+      totalPrice: 50,
+      recipientName: "Joshua"
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://hook.eu1.make.com/er8khojd5b8ctfxezo79282sqykj9iqh");
+    assert.equal(result.sent, true);
+    assert.equal(result.provider, "make");
+  } finally {
+    global.fetch = originalFetch;
+    if (originalWebhook === undefined) {
+      delete process.env.MAKE_RECEIPT_WEBHOOK_URL;
+    } else {
+      process.env.MAKE_RECEIPT_WEBHOOK_URL = originalWebhook;
+    }
+  }
 });
