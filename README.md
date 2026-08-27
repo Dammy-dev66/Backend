@@ -20,7 +20,6 @@ This project keeps the student inside the custom Fin journey instead of sending 
 - `api/package-checkout.js` builds the custom checkout URL.
 - `api/create-stripe-session.js` creates the live Stripe Checkout session.
 - `api/webhooks/stripe.js` receives Stripe's checkout completion event, creates the Acuity follow-up record, and sends the Make-powered email for both package purchases and direct paid bookings.
-- `api/stripe-complete.js` now only verifies the paid Stripe session so the return page can show confirmation without doing the side effects in the browser.
 - `api/payment-complete.js` turns a completed package payment into the Acuity handoff URL and sends the confirmation email for the local/mock payment path when booking details are present.
 - `api/admin/coupons.js` lets Fin manage coupon rules from a protected admin panel.
 - `api/resolve-package.js` finds the certificate for a package by email, order, or product.
