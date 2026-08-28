@@ -231,15 +231,16 @@ Before we can call this fully done, the remaining work is:
 - `public/` is the student-facing custom booking flow.
 - `public/checkout.html` is the package checkout bridge.
 - `public/return.html` is the post-payment confirmation bridge.
-- `public/admin.html` is the protected coupon admin panel.
+- `public/admin.html` is the protected booking dashboard.
 - `api/package-checkout.js` builds the custom checkout URL.
 - `api/create-stripe-session.js` creates the Stripe session.
 - `api/webhooks/stripe.js` handles Stripe completion events and triggers fulfillment.
 - `api/payment-complete.js` supports the local/mock payment path for older tests.
+- `api/booking-config.js` serves the shared booking config and accepts dashboard saves.
 - `api/admin/coupons.js` manages coupon rules.
 - `api/resolve-package.js` finds package certificates.
 - `api/book-with-package.js` validates package redemption and books the appointment.
-- `api/availability-dates.js` and `api/availability-times.js` proxy Acuity availability.
+- `api/availability.js` proxies Acuity availability dates and times.
 - `api/webhooks/acuity.js` accepts Acuity webhook events for logging and audit.
 
 ## Environment Variables

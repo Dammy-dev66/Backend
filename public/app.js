@@ -548,7 +548,7 @@ async function loadMonth({ autoAdvance = false } = {}) {
     $("monthLabel").textContent = monthToLoad.toLocaleString("en-US", { month: "long", year: "numeric" });
     grid.innerHTML = `<p class="muted">Loading available times...</p>`;
 
-    const path = `/api/availability-dates?appointmentTypeID=${state.appointmentTypeID}&month=${monthKey(monthToLoad)}&calendarID=${CALENDAR_ID}`;
+    const path = `/api/availability?appointmentTypeID=${state.appointmentTypeID}&month=${monthKey(monthToLoad)}&calendarID=${CALENDAR_ID}`;
     const { ok, data } = await api(path);
     grid.innerHTML = "";
 
@@ -564,7 +564,7 @@ async function loadMonth({ autoAdvance = false } = {}) {
     }
 
     const schedule = await Promise.all(data.dates.map(async (item) => {
-      const timesPath = `/api/availability-times?appointmentTypeID=${state.appointmentTypeID}&date=${item.date}&calendarID=${CALENDAR_ID}`;
+      const timesPath = `/api/availability?appointmentTypeID=${state.appointmentTypeID}&date=${item.date}&calendarID=${CALENDAR_ID}&mode=times`;
       const timesRes = await api(timesPath);
       return {
         date: item.date,

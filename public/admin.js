@@ -1,5 +1,5 @@
 (() => {
-  const BOOKING_API = "/api/admin/booking-config";
+  const BOOKING_API = "/api/booking-config";
   const COUPON_API = "/api/admin/coupons";
 
   const adminKeyInput = document.createElement("input");
