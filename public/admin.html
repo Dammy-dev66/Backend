@@ -20,18 +20,128 @@
     </header>
 
     <main class="panel admin-panel">
-      <p class="eyebrow">Coupon Admin</p>
-      <h1>Manage package coupons.</h1>
-      <p class="lede">Create percentage discounts, choose which packages they apply to, and save them to the shared coupon store.</p>
+      <p class="eyebrow">Booking dashboard</p>
+      <h1>Manage subjects, lesson types, and coupons.</h1>
+      <p class="lede">Update the booking config in one place so Carrd and the custom flow stay aligned with Fin's latest services.</p>
 
       <div class="admin-toolbar">
         <button class="btn-secondary" id="refreshBtn" type="button">Refresh</button>
+        <button class="btn-secondary" id="addSubjectBtn" type="button">Add subject</button>
+        <button class="btn-secondary" id="addServiceBtn" type="button">Add lesson type</button>
         <button class="btn-secondary" id="addCouponBtn" type="button">Add coupon</button>
-        <button class="btn-primary" id="saveBtn" type="button">Save changes</button>
+        <button class="btn-primary" id="saveBtn" type="button">Save dashboard</button>
       </div>
 
       <p class="field-error hidden" id="adminError"></p>
       <p class="field-hint" id="adminStatus"></p>
+
+      <section class="admin-section">
+        <h2>Subjects</h2>
+        <div class="admin-split">
+          <div>
+            <div id="subjectList" class="record-list"></div>
+          </div>
+          <div class="record-editor">
+            <div class="record-editor-head">
+              <strong>Selected subject</strong>
+              <span id="subjectStatus" class="status-pill"></span>
+            </div>
+            <label class="field">
+              <span>Name</span>
+              <input id="subjectNameInput" type="text" placeholder="AP Psychology">
+            </label>
+            <label class="field">
+              <span>Slug</span>
+              <input id="subjectSlugInput" type="text" placeholder="ap-psychology">
+            </label>
+            <label class="field">
+              <span>Label</span>
+              <input id="subjectLabelInput" type="text" placeholder="AP Psychology">
+            </label>
+            <label class="field">
+              <span>Order</span>
+              <input id="subjectOrderInput" type="number" min="1" step="1" placeholder="1">
+            </label>
+            <label class="field checkbox-row">
+              <input id="subjectActiveInput" type="checkbox" checked>
+              <span>Active</span>
+            </label>
+            <label class="field">
+              <span>Note</span>
+              <input id="subjectNoteInput" type="text" placeholder="Optional internal note">
+            </label>
+            <div class="editor-actions">
+              <button class="btn-secondary" id="deleteSubjectBtn" type="button">Delete subject</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <h2>Lesson types / mappings</h2>
+        <div class="admin-split">
+          <div>
+            <div id="serviceList" class="record-list"></div>
+          </div>
+          <div class="record-editor">
+            <div class="record-editor-head">
+              <strong>Selected lesson type</strong>
+              <span id="serviceStatus" class="status-pill"></span>
+            </div>
+            <label class="field">
+              <span>Subject</span>
+              <select id="serviceSubjectInput"></select>
+            </label>
+            <label class="field">
+              <span>Lesson format</span>
+              <select id="serviceFormatInput">
+                <option value="oneToOne">Tutor + one student</option>
+                <option value="oneToTwo">Tutor + two students</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Tier</span>
+              <select id="serviceTierInput">
+                <option value="trial">Trial class</option>
+                <option value="single">Single lesson</option>
+                <option value="pack6">6-class package</option>
+                <option value="pack12">12-class package</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Display label</span>
+              <input id="serviceLabelInput" type="text" placeholder="Tutor + one student - Trial class">
+            </label>
+            <label class="field">
+              <span>Acuity appointment type ID</span>
+              <input id="serviceAppointmentTypeInput" type="text" placeholder="95402082">
+            </label>
+            <label class="field">
+              <span>Acuity product / package ID</span>
+              <input id="serviceProductInput" type="text" placeholder="2253280">
+            </label>
+            <label class="field">
+              <span>Calendar ID</span>
+              <input id="serviceCalendarInput" type="text" placeholder="14289294">
+            </label>
+            <label class="field">
+              <span>Direct booking link</span>
+              <input id="serviceLinkInput" type="url" placeholder="https://app.acuityscheduling.com/...">
+            </label>
+            <label class="field checkbox-row">
+              <input id="serviceActiveInput" type="checkbox" checked>
+              <span>Active</span>
+            </label>
+            <label class="field">
+              <span>Note</span>
+              <input id="serviceNoteInput" type="text" placeholder="Optional internal note">
+            </label>
+            <div class="editor-actions">
+              <button class="btn-secondary" id="deleteServiceBtn" type="button">Delete lesson type</button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section class="admin-section">
         <h2>Current coupons</h2>

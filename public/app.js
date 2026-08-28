@@ -5,7 +5,7 @@ const OWNER_ID = "39765601";
 const CALENDAR_ID = 14289294;
 const STUDENT_NAME_FIELD_ID = 18796496;
 
-const CLASS_DATA = [
+const DEFAULT_CLASS_DATA = [
   subject("AP Psychology", {
     oneToOne: { trial: 95402082, single: 95401962, pack6: [95402039, 2253280], pack12: [95402055, 2253278] },
     oneToTwo: { trial: 95402146, single: 95402102, pack6: [95402119, 2253250], pack12: [95402129, 2253284] }
@@ -27,6 +27,7 @@ const CLASS_DATA = [
     oneToTwo: { trial: 96952729, single: 96952707, pack6: [96952763, 2260536], pack12: [96952778, 2260537] }
   })
 ];
+let CLASS_DATA = DEFAULT_CLASS_DATA.slice();
 
 const FORMATS = [
   { key: "oneToOne", label: "Tutor + one student", price: { trial: 25, single: 50, pack6: 264, pack12: 456 } },
@@ -63,6 +64,63 @@ function subject(name, options) {
   return { name, options };
 }
 
+function safeId(value) {
+  return String(value || "").trim();
+}
+
+function convertBookingConfigToClassData(config) {
+  if (!config || !Array.isArray(config.subjects) || !Array.isArray(config.services)) {
+    return DEFAULT_CLASS_DATA.slice();
+  }
+
+  const servicesBySubject = new Map();
+  config.services.forEach((service) => {
+    if (service.active === false) {
+      return;
+    }
+    const subjectId = service.subjectId;
+    if (!servicesBySubject.has(subjectId)) {
+      servicesBySubject.set(subjectId, []);
+    }
+    servicesBySubject.get(subjectId).push(service);
+  });
+
+  return config.subjects
+    .filter((item) => item.active !== false)
+    .slice()
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name))
+    .map((item) => {
+      const options = {
+        oneToOne: {},
+        oneToTwo: {}
+      };
+
+      const subjectServices = servicesBySubject.get(item.id) || [];
+      subjectServices.forEach((service) => {
+        const appointmentTypeID = safeId(service.appointmentTypeID);
+        const productID = safeId(service.productID);
+        const value = productID ? [appointmentTypeID, productID] : appointmentTypeID;
+        if (options[service.format]) {
+          options[service.format][service.tier] = value;
+        }
+      });
+
+      return subject(item.name, options);
+    });
+}
+
+async function loadBookingConfig() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/booking-config`);
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok && Array.isArray(data.subjects) && Array.isArray(data.services)) {
+      CLASS_DATA = convertBookingConfigToClassData(data);
+    }
+  } catch {
+    CLASS_DATA = DEFAULT_CLASS_DATA.slice();
+  }
+}
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -80,7 +138,11 @@ function selectedTier() {
 }
 
 function selectedConfig() {
-  const value = selectedSubject().options[state.formatKey][state.tierKey];
+  const subject = selectedSubject();
+  const value = subject?.options?.[state.formatKey]?.[state.tierKey];
+  if (!value) {
+    return { appointmentTypeID: null, productID: null };
+  }
   const appointmentTypeID = Array.isArray(value) ? value[0] : value;
   const productID = Array.isArray(value) ? value[1] : null;
   return { appointmentTypeID, productID };
@@ -319,9 +381,12 @@ function updateChoiceUI() {
   $("choiceSummary").innerHTML = `<strong>${selectedSubject().name}</strong><br>${format.label} - ${tier.label} - ${money(price)}`;
   $("packageChoice").classList.toggle("hidden", !tier.needsPackage);
   $("certificateFields").classList.toggle("hidden", !tier.needsPackage || state.packageMode === "buy");
+  const mappingReady = Boolean(state.appointmentTypeID);
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
     ? "Pay"
     : "Select dates/times";
+  $("continueChoiceBtn").disabled = !mappingReady;
+  $("step1Error").textContent = mappingReady ? "" : "This lesson type is not mapped to Acuity yet. Please update it in the dashboard first.";
 }
 
 function setPackageMode(mode) {
@@ -764,12 +829,15 @@ $("nextMonth").addEventListener("click", () => {
   loadMonth();
 });
 
-populateSelectors();
-if (new URLSearchParams(location.search).get("step") === "2") {
-  setStep(2);
-} else {
-  setStep(1);
-}
+(async function init() {
+  await loadBookingConfig();
+  populateSelectors();
+  if (new URLSearchParams(location.search).get("step") === "2") {
+    setStep(2);
+  } else {
+    setStep(1);
+  }
+})();
 
 window.addEventListener("storage", (event) => {
   if (event.key === "finbarReturnTarget" && event.newValue) {

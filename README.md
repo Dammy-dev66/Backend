@@ -100,7 +100,22 @@ The coupon system supports:
 
 This was built so coupon behavior can be adjusted later without changing the main booking flow.
 
-### 8. 1:2 booking support
+### 8. Booking dashboard source of truth
+
+The admin area now goes beyond coupons and acts as the shared booking dashboard.
+
+It can store and manage:
+
+- subjects
+- lesson types / package tiers
+- Acuity appointment type IDs
+- Acuity product/package IDs
+- calendar IDs
+- direct booking links
+
+The public booking page and Carrd helper both read from the shared booking config endpoint, so subject and lesson mappings can be updated from the dashboard without hardcoding every route in two separate places.
+
+### 9. 1:2 booking support
 
 The custom flow was expanded for 1:2 lessons.
 
@@ -108,13 +123,13 @@ The custom flow was expanded for 1:2 lessons.
 - the checkout metadata passes both student fields through
 - the Acuity booking handoff includes both names in the notes/details path
 
-### 9. Calendar and slot selection cleanup
+### 10. Calendar and slot selection cleanup
 
 The time picker and calendar layout were tightened up so the view is cleaner and more centered.
 
 We also adjusted the booking step so it auto-opens to the first available slot set instead of making the student click around just to reveal times.
 
-### 10. Copy and branding cleanup
+### 11. Copy and branding cleanup
 
 We updated a lot of the visible text to remove generic or confusing wording.
 

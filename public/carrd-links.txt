@@ -6,6 +6,9 @@ https://backend-ymlj.vercel.app/
 Carrd redirect helper:
 https://backend-ymlj.vercel.app/lesson-dropdown.js
 
+Carrd booking config API:
+https://backend-ymlj.vercel.app/api/booking-config
+
 Return bridge:
 https://backend-ymlj.vercel.app/return.html
 
@@ -16,4 +19,5 @@ Recommended Carrd use:
 If you want a button to open the booking flow directly, point it at:
 https://backend-ymlj.vercel.app/?subject=AP%20Psychology&format=oneToOne&tier=trial&source=carrd
 
-Package bookings should follow the same path. The custom page will decide whether the student is redeeming an existing package or buying a new one.
+Package bookings should follow the same path.
+The lesson-dropdown script now reads live subject/service mappings from the booking-config API, so Carrd can stay aligned with the dashboard without hardcoding every route by hand.

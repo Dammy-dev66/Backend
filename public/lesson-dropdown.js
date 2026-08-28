@@ -1,5 +1,5 @@
 (function () {
-  var bookingLinks = {
+  var fallbackBookingLinks = {
     "AP Psychology": {
       "trial:1:1": "https://backend-ymlj.vercel.app/?subject=AP%20Psychology&format=oneToOne&tier=trial&source=carrd",
       "trial:1:2": "https://backend-ymlj.vercel.app/?subject=AP%20Psychology&format=oneToTwo&tier=trial&source=carrd",
@@ -52,6 +52,7 @@
     }
   };
 
+  var bookingLinks = fallbackBookingLinks;
   var overlay = document.getElementById("fbBookModalOverlay");
   var subjectHeading = overlay ? overlay.querySelector("#fbBookModalSubject") : null;
   var closeBtn = overlay ? overlay.querySelector(".fb-book-modal-close") : null;
@@ -62,6 +63,54 @@
     var tab = window.open(url, "_blank");
     if (tab) {
       tab.focus();
+    }
+  }
+
+  function tierKey(tier) {
+    if (tier === "pack6") return "six";
+    if (tier === "pack12") return "twelve";
+    return tier;
+  }
+
+  function sizeKey(format) {
+    return format === "oneToTwo" ? "1:2" : "1:1";
+  }
+
+  async function loadBookingConfig() {
+    try {
+      var response = await fetch("https://backend-ymlj.vercel.app/api/booking-config");
+      var data = await response.json().catch(function () { return {}; });
+      if (!response.ok || !data || !data.ok || !Array.isArray(data.subjects) || !Array.isArray(data.services)) {
+        return;
+      }
+
+      var nextLinks = {};
+      data.subjects
+        .filter(function (subject) { return subject.active !== false; })
+        .forEach(function (subject) {
+          nextLinks[subject.name] = {};
+        });
+
+      data.services
+        .filter(function (service) { return service.active !== false; })
+        .forEach(function (service) {
+          var subject = data.subjects.find(function (item) { return item.id === service.subjectId; });
+          if (!subject || subject.active === false || !nextLinks[subject.name]) {
+            return;
+          }
+
+          var url = new URL("https://backend-ymlj.vercel.app/");
+          url.searchParams.set("subject", subject.name);
+          url.searchParams.set("format", service.format);
+          url.searchParams.set("tier", service.tier);
+          url.searchParams.set("source", "carrd");
+
+          nextLinks[subject.name][tierKey(service.tier) + ":" + sizeKey(service.format)] = url.toString();
+        });
+
+      bookingLinks = nextLinks;
+    } catch {
+      bookingLinks = fallbackBookingLinks;
     }
   }
 
@@ -127,9 +176,13 @@
     });
   }
 
+  function boot() {
+    loadBookingConfig().finally(init);
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", boot);
   } else {
-    init();
+    boot();
   }
 })();
