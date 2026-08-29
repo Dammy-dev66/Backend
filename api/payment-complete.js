@@ -34,6 +34,7 @@ function buildPaymentCompleteUrl({
   certificateCreated,
   totalPrice,
   datetime,
+  bookingLink,
   source,
   sessionID,
   studentName2
@@ -51,6 +52,7 @@ function buildPaymentCompleteUrl({
   if (couponCode) url.searchParams.set("couponCode", couponCode);
   if (sessionID) url.searchParams.set("session_id", sessionID);
   if (datetime) url.searchParams.set("datetime", datetime);
+  if (bookingLink) url.searchParams.set("bookingLink", bookingLink);
   if (studentName2) url.searchParams.set("studentName2", studentName2);
   if (appointmentCreated) url.searchParams.set("appointmentCreated", "1");
   if (certificateCreated) url.searchParams.set("certificateCreated", "1");
@@ -195,6 +197,7 @@ module.exports = async function handler(req, res) {
       certificateCreated,
       totalPrice,
       datetime,
+      bookingLink: receiptEmail?.bookingLink || "",
       source: cleanString(body.source),
       sessionID: cleanString(body.sessionID),
       studentName2

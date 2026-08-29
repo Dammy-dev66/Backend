@@ -48,6 +48,7 @@
     const orderID = params.get("orderID") || saved.orderID || "";
     const productID = params.get("productID") || "";
     const certificate = params.get("certificate") || saved.certificate || "";
+    const bookingLink = params.get("bookingLink") || saved.bookingLink || "";
     const couponCode = params.get("couponCode") || "";
     const totalPrice = params.get("totalPrice") || "";
     const source = params.get("source") || "stripe";
@@ -59,21 +60,24 @@
       oneToTwo: "Tutor + two students"
     }[format] || format;
 
-    const target = new URL("/", location.origin);
-    if (subject) target.searchParams.set("subject", subject);
-    if (format) target.searchParams.set("format", format);
-    if (tier) target.searchParams.set("tier", tier);
-    if (appointmentTypeID) target.searchParams.set("appointmentTypeID", appointmentTypeID);
-    if (email) target.searchParams.set("email", email);
-    if (backUrl) target.searchParams.set("backUrl", backUrl);
-    if (orderID) target.searchParams.set("orderID", orderID);
-    if (productID) target.searchParams.set("productID", productID);
-    if (certificate) target.searchParams.set("certificate", certificate);
-    if (couponCode) target.searchParams.set("couponCode", couponCode);
-    target.searchParams.set("source", isPackageTier ? "receipt" : source);
-    target.searchParams.set("step", bookingStep);
-
-    bookLink.href = target.toString();
+    if (bookingLink) {
+      bookLink.href = bookingLink;
+    } else {
+      const target = new URL("/", location.origin);
+      if (subject) target.searchParams.set("subject", subject);
+      if (format) target.searchParams.set("format", format);
+      if (tier) target.searchParams.set("tier", tier);
+      if (appointmentTypeID) target.searchParams.set("appointmentTypeID", appointmentTypeID);
+      if (email) target.searchParams.set("email", email);
+      if (backUrl) target.searchParams.set("backUrl", backUrl);
+      if (orderID) target.searchParams.set("orderID", orderID);
+      if (productID) target.searchParams.set("productID", productID);
+      if (certificate) target.searchParams.set("certificate", certificate);
+      if (couponCode) target.searchParams.set("couponCode", couponCode);
+      target.searchParams.set("source", isPackageTier ? "receipt" : source);
+      target.searchParams.set("step", bookingStep);
+      bookLink.href = target.toString();
+    }
     bookLink.textContent = isPackageTier ? "Go to sessions" : "Book again";
 
     summary.innerHTML = `

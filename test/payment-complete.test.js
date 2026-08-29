@@ -18,6 +18,7 @@ test("buildPaymentCompleteUrl returns the booking return bridge", () => {
       certificateCreated: true,
       totalPrice: 238,
       datetime: "2026-09-01T14:00:00+01:00",
+      bookingLink: "https://backend-ymlj.vercel.app/?subject=AP%20Psychology&step=2",
       source: "mock-payment"
     },
     "https://backend-ymlj.vercel.app"
@@ -31,6 +32,7 @@ test("buildPaymentCompleteUrl returns the booking return bridge", () => {
   assert.equal(parsed.searchParams.get("totalPrice"), "238");
   assert.equal(parsed.searchParams.get("productID"), "2253280");
   assert.equal(parsed.searchParams.get("datetime"), "2026-09-01T14:00:00+01:00");
+  assert.equal(parsed.searchParams.get("bookingLink"), "https://backend-ymlj.vercel.app/?subject=AP%20Psychology&step=2");
   assert.equal(parsed.searchParams.get("certificateCreated"), "1");
   assert.equal(parsed.searchParams.get("source"), "mock-payment");
 });
