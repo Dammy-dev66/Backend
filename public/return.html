@@ -45,11 +45,14 @@
     const appointmentTypeID = params.get("appointmentTypeID") || saved.appointmentTypeID || "";
     const email = params.get("email") || saved.packageEmail || "";
     const backUrl = params.get("backUrl") || saved.backUrl || localStorage.getItem("finbarBackUrl") || "";
+    const orderID = params.get("orderID") || saved.orderID || "";
     const productID = params.get("productID") || "";
+    const certificate = params.get("certificate") || saved.certificate || "";
     const couponCode = params.get("couponCode") || "";
     const totalPrice = params.get("totalPrice") || "";
     const source = params.get("source") || "stripe";
-    const bookingStep = productID ? "2" : "1";
+    const isPackageTier = /^pack/i.test(tier);
+    const bookingStep = isPackageTier ? "2" : "1";
 
     const formatLabel = {
       oneToOne: "Tutor + one student",
@@ -67,11 +70,11 @@
     if (productID) target.searchParams.set("productID", productID);
     if (certificate) target.searchParams.set("certificate", certificate);
     if (couponCode) target.searchParams.set("couponCode", couponCode);
-    target.searchParams.set("source", productID ? "receipt" : source);
+    target.searchParams.set("source", isPackageTier ? "receipt" : source);
     target.searchParams.set("step", bookingStep);
 
     bookLink.href = target.toString();
-    bookLink.textContent = productID ? "Go to sessions" : "Book again";
+    bookLink.textContent = isPackageTier ? "Go to sessions" : "Book again";
 
     summary.innerHTML = `
       <strong>${subject}</strong><br>
