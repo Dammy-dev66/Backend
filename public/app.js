@@ -348,7 +348,9 @@ function populateSelectors() {
     return;
   }
 
-  if (selectedTier().needsPackage && (directToSessions || source === "acuity" || certificateCreated || productID || certificate)) {
+  const packageReturnContext = directToSessions || source === "acuity" || source === "receipt" || source === "package" || certificateCreated || productID || certificate;
+
+  if (selectedTier().needsPackage && packageReturnContext) {
     if (certificate) {
       state.packageMode = "redeem";
       setPackageMode("redeem");
