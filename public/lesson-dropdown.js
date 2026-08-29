@@ -88,14 +88,6 @@
     }
   };
 
-  var fallbackSubjects = [
-    { id: "ap-english-language-composition", name: "AP English Language & Composition", slug: "ap-english-language-composition" },
-    { id: "ap-psychology", name: "AP Psychology", slug: "ap-psychology" },
-    { id: "english-literature", name: "English Literature", slug: "english-literature" },
-    { id: "essay-writing-college-apps", name: "Essay Writing & College Apps", slug: "essay-writing-college-apps" },
-    { id: "elegant-essays", name: "Elegant Essays", slug: "elegant-essays" }
-  ];
-
   var bookingLinks = fallbackBookingLinks;
   var overlay = document.getElementById("fbBookModalOverlay");
   var slider = document.getElementById("fbSubjectSlider");
@@ -311,10 +303,6 @@
 
   function boot() {
     initModal();
-
-    if (track && track.children.length === 0) {
-      renderSubjects(fallbackSubjects);
-    }
 
     loadBookingConfig().finally(function () {
       startAutoRefresh();
