@@ -2,12 +2,9 @@
   const BOOKING_API = "/api/booking-config";
   const COUPON_API = "/api/admin/coupons";
 
-  const adminKeyInput = document.createElement("input");
-  adminKeyInput.type = "password";
-  adminKeyInput.placeholder = "Admin key";
-  adminKeyInput.className = "admin-key-input";
-  adminKeyInput.autocomplete = "current-password";
-
+  const adminKeyInput = document.getElementById("adminKeyField");
+  const tabButtons = Array.from(document.querySelectorAll(".admin-tab"));
+  const tabPanels = Array.from(document.querySelectorAll(".admin-tab-panel"));
   const subjectList = document.getElementById("subjectList");
   const serviceList = document.getElementById("serviceList");
   const packageList = document.getElementById("packageList");
@@ -19,6 +16,15 @@
   const addServiceBtn = document.getElementById("addServiceBtn");
   const addCouponBtn = document.getElementById("addCouponBtn");
   const saveBtn = document.getElementById("saveBtn");
+  const deleteSubjectBtn = document.getElementById("deleteSubjectBtn");
+  const deleteServiceBtn = document.getElementById("deleteServiceBtn");
+  const deleteCouponBtn = document.getElementById("deleteCouponBtn");
+  const subjectSearchInput = document.getElementById("subjectSearchInput");
+  const serviceSearchInput = document.getElementById("serviceSearchInput");
+  const couponSearchInput = document.getElementById("couponSearchInput");
+  const subjectStatus = document.getElementById("subjectStatus");
+  const serviceStatus = document.getElementById("serviceStatus");
+  const couponStatus = document.getElementById("couponStatus");
 
   const subjectNameInput = document.getElementById("subjectNameInput");
   const subjectSlugInput = document.getElementById("subjectSlugInput");
@@ -26,8 +32,6 @@
   const subjectOrderInput = document.getElementById("subjectOrderInput");
   const subjectActiveInput = document.getElementById("subjectActiveInput");
   const subjectNoteInput = document.getElementById("subjectNoteInput");
-  const subjectStatus = document.getElementById("subjectStatus");
-  const deleteSubjectBtn = document.getElementById("deleteSubjectBtn");
 
   const serviceSubjectInput = document.getElementById("serviceSubjectInput");
   const serviceFormatInput = document.getElementById("serviceFormatInput");
@@ -39,8 +43,6 @@
   const serviceLinkInput = document.getElementById("serviceLinkInput");
   const serviceActiveInput = document.getElementById("serviceActiveInput");
   const serviceNoteInput = document.getElementById("serviceNoteInput");
-  const serviceStatus = document.getElementById("serviceStatus");
-  const deleteServiceBtn = document.getElementById("deleteServiceBtn");
 
   const codeInput = document.getElementById("codeInput");
   const percentInput = document.getElementById("percentInput");
@@ -48,16 +50,20 @@
   const messageInput = document.getElementById("messageInput");
   const activeInput = document.getElementById("activeInput");
 
-  document.querySelector(".admin-toolbar").prepend(adminKeyInput);
-
   const state = {
+    tab: "subjects",
     subjects: [],
     services: [],
     coupons: [],
     packageCatalog: [],
     selectedSubjectId: "",
     selectedServiceId: "",
-    selectedCouponCode: ""
+    selectedCouponCode: "",
+    search: {
+      subjects: "",
+      services: "",
+      coupons: ""
+    }
   };
 
   function newId(prefix) {
@@ -84,8 +90,22 @@
     adminStatus.textContent = message || "";
   }
 
-  function selectedPackageKeys() {
-    return Array.from(packageList.querySelectorAll("input[type='checkbox']:checked")).map((input) => input.value);
+  function currentSubject() {
+    return state.subjects.find((item) => item.id === state.selectedSubjectId) || null;
+  }
+
+  function currentService() {
+    return state.services.find((item) => item.id === state.selectedServiceId) || null;
+  }
+
+  function currentCoupon() {
+    return state.coupons.find((item) => item.code === state.selectedCouponCode) || null;
+  }
+
+  function setTab(tab) {
+    state.tab = tab;
+    tabButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
+    tabPanels.forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== tab));
   }
 
   function renderPackageList() {
@@ -97,32 +117,48 @@
     `).join("");
   }
 
+  function subjectDisplay(subject) {
+    return subject.label || subject.name || "Untitled subject";
+  }
+
+  function serviceDisplay(service) {
+    const format = service.format === "oneToTwo" ? "Tutor + two students" : "Tutor + one student";
+    const tier = service.tier === "trial"
+      ? "Trial class"
+      : service.tier === "single"
+        ? "Single lesson"
+        : service.tier === "pack6"
+          ? "6-class package"
+          : "12-class package";
+    return service.label || `${format} - ${tier}`;
+  }
+
   function copySubject(subject) {
     return {
-      id: subject.id || newId("subject"),
-      name: subject.name || "",
-      slug: subject.slug || "",
-      label: subject.label || "",
-      note: subject.note || "",
-      order: Number.isFinite(Number(subject.order)) ? Number(subject.order) : 1,
-      active: subject.active !== false
+      id: subject?.id || newId("subject"),
+      name: subject?.name || "",
+      slug: subject?.slug || "",
+      label: subject?.label || "",
+      note: subject?.note || "",
+      order: Number.isFinite(Number(subject?.order)) ? Number(subject.order) : 1,
+      active: subject?.active !== false
     };
   }
 
   function copyService(service) {
     return {
-      id: service.id || newId("service"),
-      subjectId: service.subjectId || "",
-      format: service.format || "oneToOne",
-      tier: service.tier || "trial",
-      label: service.label || "",
-      appointmentTypeID: service.appointmentTypeID || "",
-      productID: service.productID || "",
-      calendarID: service.calendarID || "",
-      bookingLink: service.bookingLink || "",
-      note: service.note || "",
-      order: Number.isFinite(Number(service.order)) ? Number(service.order) : 1,
-      active: service.active !== false
+      id: service?.id || newId("service"),
+      subjectId: service?.subjectId || "",
+      format: service?.format || "oneToOne",
+      tier: service?.tier || "trial",
+      label: service?.label || "",
+      appointmentTypeID: service?.appointmentTypeID || "",
+      productID: service?.productID || "",
+      calendarID: service?.calendarID || "",
+      bookingLink: service?.bookingLink || "",
+      note: service?.note || "",
+      order: Number.isFinite(Number(service?.order)) ? Number(service.order) : 1,
+      active: service?.active !== false
     };
   }
 
@@ -137,34 +173,22 @@
     };
   }
 
-  function selectedSubject() {
-    return state.subjects.find((item) => item.id === state.selectedSubjectId) || null;
-  }
-
-  function selectedService() {
-    return state.services.find((item) => item.id === state.selectedServiceId) || null;
-  }
-
-  function selectedCoupon() {
-    return state.coupons.find((item) => item.code === state.selectedCouponCode) || null;
-  }
-
   function fillSubjectEditor(subject) {
-    const record = copySubject(subject || {});
+    const record = copySubject(subject);
     subjectNameInput.value = record.name;
-    subjectSlugInput.value = record.slug;
     subjectLabelInput.value = record.label;
-    subjectOrderInput.value = record.order || "";
     subjectActiveInput.checked = record.active !== false;
+    subjectSlugInput.value = record.slug;
+    subjectOrderInput.value = record.order || "";
     subjectNoteInput.value = record.note;
     subjectStatus.textContent = record.id ? (record.active ? "Active" : "Inactive") : "";
   }
 
   function fillServiceEditor(service) {
-    const record = copyService(service || {});
-    serviceSubjectInput.value = record.subjectId || "";
-    serviceFormatInput.value = record.format || "oneToOne";
-    serviceTierInput.value = record.tier || "trial";
+    const record = copyService(service);
+    serviceSubjectInput.value = record.subjectId || state.subjects[0]?.id || "";
+    serviceFormatInput.value = record.format;
+    serviceTierInput.value = record.tier;
     serviceLabelInput.value = record.label;
     serviceAppointmentTypeInput.value = record.appointmentTypeID;
     serviceProductInput.value = record.productID;
@@ -176,7 +200,7 @@
   }
 
   function fillCouponEditor(coupon) {
-    const record = copyCoupon(coupon || {});
+    const record = copyCoupon(coupon);
     codeInput.value = record.code;
     percentInput.value = record.percent ?? "";
     labelInput.value = record.label;
@@ -187,48 +211,49 @@
     packageList.querySelectorAll("input[type='checkbox']").forEach((input) => {
       input.checked = keys.has(input.value) || keys.has("*");
     });
+    couponStatus.textContent = record.code ? (record.active ? "Active" : "Inactive") : "";
   }
 
   function renderSubjectList() {
-    subjectList.innerHTML = "";
+    const query = state.search.subjects.toLowerCase();
+    const items = state.subjects
+      .slice()
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name))
+      .filter((subject) => {
+        if (!query) return true;
+        return [subject.name, subject.slug, subject.label, subject.note]
+          .some((value) => String(value || "").toLowerCase().includes(query));
+      });
 
-    if (!state.subjects.length) {
-      subjectList.innerHTML = `<p class="muted">No subjects saved yet.</p>`;
+    subjectList.innerHTML = "";
+    if (!items.length) {
+      subjectList.innerHTML = `<p class="muted">No subjects match your search.</p>`;
       return;
     }
 
-    state.subjects
-      .slice()
-      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name))
-      .forEach((subject) => {
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = `record-row${subject.id === state.selectedSubjectId ? " active" : ""}`;
-        const serviceCount = state.services.filter((service) => service.subjectId === subject.id).length;
-        const mappedCount = state.services.filter((service) => service.subjectId === subject.id && (service.appointmentTypeID || service.bookingLink)).length;
-        row.innerHTML = `
-          <strong>${subject.name}</strong>
-          <span>${subject.label || subject.name}${subject.active === false ? " - inactive" : ""}</span>
-          <small>${serviceCount} lesson type(s) · ${mappedCount} mapped</small>
-        `;
-        row.addEventListener("click", () => {
-          state.selectedSubjectId = subject.id;
-          fillSubjectEditor(subject);
-          renderSubjectList();
-        });
-        subjectList.appendChild(row);
+    items.forEach((subject) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `record-row${subject.id === state.selectedSubjectId ? " active" : ""}`;
+      const serviceCount = state.services.filter((service) => service.subjectId === subject.id).length;
+      const mappedCount = state.services.filter((service) => service.subjectId === subject.id && (service.appointmentTypeID || service.bookingLink)).length;
+      row.innerHTML = `
+        <strong>${subjectDisplay(subject)}</strong>
+        <span>${subject.slug || "No slug yet"}${subject.active === false ? " - inactive" : ""}</span>
+        <small>${serviceCount} lesson type(s) - ${mappedCount} mapped</small>
+      `;
+      row.addEventListener("click", () => {
+        state.selectedSubjectId = subject.id;
+        fillSubjectEditor(subject);
+        renderSubjectList();
       });
+      subjectList.appendChild(row);
+    });
   }
 
   function renderServiceList() {
-    serviceList.innerHTML = "";
-
-    if (!state.services.length) {
-      serviceList.innerHTML = `<p class="muted">No lesson types saved yet.</p>`;
-      return;
-    }
-
-    state.services
+    const query = state.search.services.toLowerCase();
+    const items = state.services
       .slice()
       .sort((a, b) => {
         const subjectA = state.subjects.find((subject) => subject.id === a.subjectId);
@@ -238,34 +263,53 @@
           || a.format.localeCompare(b.format)
           || a.tier.localeCompare(b.tier);
       })
-      .forEach((service) => {
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = `record-row${service.id === state.selectedServiceId ? " active" : ""}`;
+      .filter((service) => {
+        if (!query) return true;
         const subject = state.subjects.find((item) => item.id === service.subjectId);
-        row.innerHTML = `
-          <strong>${subject?.name || "Unlinked subject"} · ${service.label || `${service.format} / ${service.tier}`}</strong>
-          <span>${service.format === "oneToTwo" ? "Tutor + two students" : "Tutor + one student"} · ${service.tier}</span>
-          <small>${service.appointmentTypeID ? `Acuity ID ${service.appointmentTypeID}` : "Needs Acuity ID"}${service.productID ? ` · Product ${service.productID}` : ""}${service.active === false ? " · inactive" : ""}</small>
-        `;
-        row.addEventListener("click", () => {
-          state.selectedServiceId = service.id;
-          fillServiceEditor(service);
-          renderServiceList();
-        });
-        serviceList.appendChild(row);
+        return [subject?.name, service.label, service.appointmentTypeID, service.productID, service.bookingLink, service.note]
+          .some((value) => String(value || "").toLowerCase().includes(query));
       });
-  }
 
-  function renderCoupons() {
-    couponList.innerHTML = "";
-
-    if (!state.coupons.length) {
-      couponList.innerHTML = `<p class="muted">No coupons saved yet.</p>`;
+    serviceList.innerHTML = "";
+    if (!items.length) {
+      serviceList.innerHTML = `<p class="muted">No lesson types match your search.</p>`;
       return;
     }
 
-    state.coupons.forEach((coupon, index) => {
+    items.forEach((service) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `record-row${service.id === state.selectedServiceId ? " active" : ""}`;
+      const subject = state.subjects.find((item) => item.id === service.subjectId);
+      row.innerHTML = `
+        <strong>${subject?.name || "Unlinked subject"} - ${serviceDisplay(service)}</strong>
+        <span>${service.format === "oneToTwo" ? "Tutor + two students" : "Tutor + one student"} - ${service.tier}</span>
+        <small>${service.appointmentTypeID ? `Acuity ID ${service.appointmentTypeID}` : "Needs Acuity ID"}${service.active === false ? " - inactive" : ""}</small>
+      `;
+      row.addEventListener("click", () => {
+        state.selectedServiceId = service.id;
+        fillServiceEditor(service);
+        renderServiceList();
+      });
+      serviceList.appendChild(row);
+    });
+  }
+
+  function renderCoupons() {
+    const query = state.search.coupons.toLowerCase();
+    const items = state.coupons.filter((coupon) => {
+      if (!query) return true;
+      return [coupon.code, coupon.label, coupon.message, (coupon.packageKeys || []).join(", ")]
+        .some((value) => String(value || "").toLowerCase().includes(query));
+    });
+
+    couponList.innerHTML = "";
+    if (!items.length) {
+      couponList.innerHTML = `<p class="muted">No coupons match your search.</p>`;
+      return;
+    }
+
+    items.forEach((coupon) => {
       const row = document.createElement("button");
       row.type = "button";
       row.className = `coupon-row${coupon.code === state.selectedCouponCode ? " active" : ""}`;
@@ -288,14 +332,18 @@
     serviceSubjectInput.innerHTML = state.subjects
       .slice()
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name))
-      .map((subject) => `<option value="${subject.id}">${subject.name}${subject.active === false ? " (inactive)" : ""}</option>`)
+      .map((subject) => `<option value="${subject.id}">${subjectDisplay(subject)}${subject.active === false ? " (inactive)" : ""}</option>`)
       .join("");
 
     if (current) {
       serviceSubjectInput.value = current;
-    } else if (!serviceSubjectInput.value && state.subjects[0]) {
+    } else if (state.subjects[0]) {
       serviceSubjectInput.value = state.subjects[0].id;
     }
+  }
+
+  function selectedPackageKeys() {
+    return Array.from(packageList.querySelectorAll("input[type='checkbox']:checked")).map((input) => input.value);
   }
 
   async function api(method, url, body) {
@@ -323,12 +371,12 @@
   }
 
   function buildSubjectPayload() {
-    const edited = copySubject(selectedSubject() || { id: state.selectedSubjectId });
+    const edited = copySubject(currentSubject());
     edited.name = subjectNameInput.value.trim();
-    edited.slug = subjectSlugInput.value.trim();
     edited.label = subjectLabelInput.value.trim();
-    edited.order = Number(subjectOrderInput.value || 0) || 1;
     edited.active = subjectActiveInput.checked;
+    edited.slug = subjectSlugInput.value.trim();
+    edited.order = Number(subjectOrderInput.value || 0) || 1;
     edited.note = subjectNoteInput.value.trim();
     if (!edited.slug && edited.name) {
       edited.slug = edited.name.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -337,7 +385,7 @@
   }
 
   function buildServicePayload() {
-    const edited = copyService(selectedService() || { id: state.selectedServiceId });
+    const edited = copyService(currentService());
     edited.subjectId = serviceSubjectInput.value;
     edited.format = serviceFormatInput.value;
     edited.tier = serviceTierInput.value;
@@ -352,7 +400,7 @@
   }
 
   function buildCouponPayload() {
-    const edited = copyCoupon(selectedCoupon() || {});
+    const edited = copyCoupon(currentCoupon());
     edited.code = codeInput.value.trim();
     edited.percent = Number(percentInput.value);
     edited.label = labelInput.value.trim();
@@ -376,33 +424,40 @@
     state.packageCatalog = bookingData.packageCatalog || couponData.packageCatalog || [];
     state.coupons = couponData.coupons || [];
 
-    renderPackageList();
-    renderServiceSubjectOptions();
-    renderSubjectList();
-    renderServiceList();
-    renderCoupons();
-
-    if (state.subjects.length && !state.selectedSubjectId) {
+    if (!state.selectedSubjectId && state.subjects[0]) {
       state.selectedSubjectId = state.subjects[0].id;
     }
-    if (state.services.length && !state.selectedServiceId) {
+    if (!state.selectedServiceId && state.services[0]) {
       state.selectedServiceId = state.services[0].id;
     }
-    if (state.coupons.length && !state.selectedCouponCode) {
+    if (!state.selectedCouponCode && state.coupons[0]) {
       state.selectedCouponCode = state.coupons[0].code;
     }
 
-    fillSubjectEditor(selectedSubject() || state.subjects[0] || {});
-    fillServiceEditor(selectedService() || state.services[0] || {});
-    fillCouponEditor(selectedCoupon() || state.coupons[0] || {});
-
+    renderPackageList();
+    renderServiceSubjectOptions();
+    fillSubjectEditor(currentSubject() || state.subjects[0] || {});
+    fillServiceEditor(currentService() || state.services[0] || {});
+    fillCouponEditor(currentCoupon() || state.coupons[0] || {});
     renderSubjectList();
     renderServiceList();
     renderCoupons();
     showStatus(`Loaded ${state.subjects.length} subjects, ${state.services.length} lesson types, and ${state.coupons.length} coupon(s).`);
   }
 
+  function ensureSelectedAfterAdd(collection, item, idKey) {
+    collection.unshift(item);
+    state[idKey] = item.id || item.code;
+  }
+
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => setTab(button.dataset.tab));
+  });
+
+  refreshBtn.addEventListener("click", () => load().catch((error) => showError(error.message)));
+
   addSubjectBtn.addEventListener("click", () => {
+    setTab("subjects");
     const subject = copySubject({
       id: newId("subject"),
       name: "New subject",
@@ -411,15 +466,15 @@
       order: state.subjects.length + 1,
       active: true
     });
-    state.subjects.unshift(subject);
-    state.selectedSubjectId = subject.id;
-    renderSubjectList();
-    fillSubjectEditor(subject);
+    ensureSelectedAfterAdd(state.subjects, subject, "selectedSubjectId");
     renderServiceSubjectOptions();
+    fillSubjectEditor(subject);
+    renderSubjectList();
   });
 
   addServiceBtn.addEventListener("click", () => {
-    const fallbackSubject = selectedSubject() || state.subjects[0] || { id: "", name: "" };
+    setTab("services");
+    const fallbackSubject = currentSubject() || state.subjects[0] || { id: "", name: "" };
     const service = copyService({
       id: newId("service"),
       subjectId: fallbackSubject.id,
@@ -429,14 +484,14 @@
       calendarID: "14289294",
       active: true
     });
-    state.services.unshift(service);
-    state.selectedServiceId = service.id;
+    ensureSelectedAfterAdd(state.services, service, "selectedServiceId");
+    fillServiceEditor(service);
     renderServiceSubjectOptions();
     renderServiceList();
-    fillServiceEditor(service);
   });
 
   addCouponBtn.addEventListener("click", () => {
+    setTab("coupons");
     const coupon = copyCoupon({
       code: "",
       percent: 10,
@@ -460,8 +515,8 @@
     renderServiceSubjectOptions();
     renderSubjectList();
     renderServiceList();
-    fillSubjectEditor(selectedSubject() || {});
-    fillServiceEditor(selectedService() || {});
+    fillSubjectEditor(currentSubject() || {});
+    fillServiceEditor(currentService() || {});
   });
 
   deleteServiceBtn.addEventListener("click", () => {
@@ -469,7 +524,16 @@
     state.services = state.services.filter((service) => service.id !== state.selectedServiceId);
     state.selectedServiceId = state.services[0]?.id || "";
     renderServiceList();
-    fillServiceEditor(selectedService() || {});
+    fillServiceEditor(currentService() || {});
+  });
+
+  deleteCouponBtn.addEventListener("click", () => {
+    const coupon = currentCoupon();
+    if (!coupon) return;
+    state.coupons = state.coupons.filter((item) => item.code !== coupon.code);
+    state.selectedCouponCode = state.coupons[0]?.code || "";
+    renderCoupons();
+    fillCouponEditor(currentCoupon() || {});
   });
 
   saveBtn.addEventListener("click", async () => {
@@ -480,15 +544,15 @@
       const coupon = buildCouponPayload();
 
       if (subject.name) {
-        const existingIndex = state.subjects.findIndex((item) => item.id === subject.id);
-        if (existingIndex >= 0) state.subjects[existingIndex] = subject;
+        const index = state.subjects.findIndex((item) => item.id === subject.id);
+        if (index >= 0) state.subjects[index] = subject;
         else state.subjects.unshift(subject);
         state.selectedSubjectId = subject.id;
       }
 
       if (service.subjectId && service.format && service.tier) {
-        const existingIndex = state.services.findIndex((item) => item.id === service.id);
-        if (existingIndex >= 0) state.services[existingIndex] = service;
+        const index = state.services.findIndex((item) => item.id === service.id);
+        if (index >= 0) state.services[index] = service;
         else state.services.unshift(service);
         state.selectedServiceId = service.id;
       }
@@ -497,14 +561,10 @@
         coupon.code = coupon.code.toUpperCase();
         coupon.percent = Math.max(1, Math.min(100, Math.round(coupon.percent)));
         coupon.packageKeys = coupon.packageKeys.length ? coupon.packageKeys : state.packageCatalog.map((item) => item.key);
-
         const originalCode = state.selectedCouponCode ? state.selectedCouponCode.toUpperCase() : "";
-        const existingIndex = state.coupons.findIndex((item) => item.code === originalCode || item.code === coupon.code);
-        if (existingIndex >= 0) {
-          state.coupons[existingIndex] = coupon;
-        } else {
-          state.coupons.unshift(coupon);
-        }
+        const index = state.coupons.findIndex((item) => item.code === originalCode || item.code === coupon.code);
+        if (index >= 0) state.coupons[index] = coupon;
+        else state.coupons.unshift(coupon);
         state.selectedCouponCode = coupon.code;
       }
 
@@ -529,19 +589,31 @@
       renderSubjectList();
       renderServiceList();
       renderCoupons();
-      fillSubjectEditor(selectedSubject() || state.subjects[0] || {});
-      fillServiceEditor(selectedService() || state.services[0] || {});
-      fillCouponEditor(selectedCoupon() || state.coupons[0] || {});
-
+      fillSubjectEditor(currentSubject() || state.subjects[0] || {});
+      fillServiceEditor(currentService() || state.services[0] || {});
+      fillCouponEditor(currentCoupon() || state.coupons[0] || {});
       showStatus("Dashboard settings saved.");
     } catch (error) {
       showError(error.message);
     }
   });
 
-  refreshBtn.addEventListener("click", () => load().catch((error) => showError(error.message)));
+  subjectSearchInput.addEventListener("input", () => {
+    state.search.subjects = subjectSearchInput.value.trim();
+    renderSubjectList();
+  });
 
-  [subjectNameInput, subjectSlugInput, subjectLabelInput, subjectOrderInput, subjectActiveInput, subjectNoteInput].forEach((input) => {
+  serviceSearchInput.addEventListener("input", () => {
+    state.search.services = serviceSearchInput.value.trim();
+    renderServiceList();
+  });
+
+  couponSearchInput.addEventListener("input", () => {
+    state.search.coupons = couponSearchInput.value.trim();
+    renderCoupons();
+  });
+
+  [subjectNameInput, subjectLabelInput, subjectActiveInput, subjectSlugInput, subjectOrderInput, subjectNoteInput].forEach((input) => {
     input.addEventListener("input", () => {
       const subject = buildSubjectPayload();
       subjectStatus.textContent = subject.active ? "Active" : "Inactive";
@@ -561,12 +633,20 @@
     });
   });
 
+  [codeInput, percentInput, labelInput, messageInput, activeInput].forEach((input) => {
+    input.addEventListener("input", () => {
+      const coupon = buildCouponPayload();
+      couponStatus.textContent = coupon.code ? (coupon.active ? "Active" : "Inactive") : "";
+    });
+  });
+
   adminKeyInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       load().catch((error) => showError(error.message));
     }
   });
 
+  setTab("subjects");
   load().catch((error) => {
     showStatus("");
     showError(error.message);

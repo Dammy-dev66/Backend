@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Coupon Admin - Finbar B. Elite Tutoring</title>
+  <title>Booking Dashboard - Finbar B. Elite Tutoring</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -20,56 +20,86 @@
     </header>
 
     <main class="panel admin-panel">
-      <p class="eyebrow">Booking dashboard</p>
-      <h1>Manage subjects, lesson types, and coupons.</h1>
-      <p class="lede">Update the booking config in one place so Carrd and the custom flow stay aligned with Fin's latest services.</p>
+      <div class="admin-hero">
+        <div class="admin-hero-copy">
+          <p class="eyebrow">Booking dashboard</p>
+          <h1>Keep the booking flow readable for Fin.</h1>
+          <p class="lede">Use the list on the left, edit the details on the right, and save without hunting through a long form. Carrd and the custom flow read from the same dashboard config.</p>
+        </div>
+        <div class="admin-guide">
+          <strong>How Fin uses this</strong>
+          <ol>
+            <li>Add or pick a subject.</li>
+            <li>Add the matching lesson type and paste the booking system IDs.</li>
+            <li>Save once to update Carrd and the custom booking flow.</li>
+          </ol>
+        </div>
+      </div>
 
       <div class="admin-toolbar">
+        <input class="admin-key-input" id="adminKeyField" type="password" placeholder="Admin key" autocomplete="current-password">
         <button class="btn-secondary" id="refreshBtn" type="button">Refresh</button>
-        <button class="btn-secondary" id="addSubjectBtn" type="button">Add subject</button>
-        <button class="btn-secondary" id="addServiceBtn" type="button">Add lesson type</button>
-        <button class="btn-secondary" id="addCouponBtn" type="button">Add coupon</button>
         <button class="btn-primary" id="saveBtn" type="button">Save dashboard</button>
       </div>
+
+      <nav class="admin-tabs" aria-label="Dashboard sections">
+        <button class="admin-tab active" data-tab="subjects" type="button">Subjects</button>
+        <button class="admin-tab" data-tab="services" type="button">Lesson types</button>
+        <button class="admin-tab" data-tab="coupons" type="button">Coupons</button>
+        <div class="admin-tab-note">Pick a section, then pick a row. The editor stays in view.</div>
+      </nav>
 
       <p class="field-error hidden" id="adminError"></p>
       <p class="field-hint" id="adminStatus"></p>
 
-      <section class="admin-section">
-        <h2>Subjects</h2>
-        <div class="admin-split">
+      <section class="admin-tab-panel active" data-panel="subjects">
+        <div class="section-banner">
           <div>
-            <div id="subjectList" class="record-list"></div>
+            <h2>Subjects</h2>
+            <p>These are the topic names Carrd and the custom booking page will show first. Keep them short, human, and student-friendly.</p>
           </div>
-          <div class="record-editor">
+          <div class="section-actions">
+            <input id="subjectSearchInput" class="section-search" type="search" placeholder="Search subjects">
+            <button class="btn-secondary" id="addSubjectBtn" type="button">Add subject</button>
+          </div>
+        </div>
+        <div class="admin-split">
+          <div class="record-list-wrap">
+            <div class="record-list" id="subjectList"></div>
+          </div>
+          <div class="record-editor sticky-editor">
             <div class="record-editor-head">
-              <strong>Selected subject</strong>
+              <strong>Subject editor</strong>
               <span id="subjectStatus" class="status-pill"></span>
             </div>
+            <p class="editor-note">This is the friendly name Fin sees. The advanced fields are only for matching and sorting behind the scenes.</p>
             <label class="field">
-              <span>Name</span>
+              <span>Subject name</span>
               <input id="subjectNameInput" type="text" placeholder="AP Psychology">
             </label>
             <label class="field">
-              <span>Slug</span>
-              <input id="subjectSlugInput" type="text" placeholder="ap-psychology">
-            </label>
-            <label class="field">
-              <span>Label</span>
+              <span>Display label</span>
               <input id="subjectLabelInput" type="text" placeholder="AP Psychology">
-            </label>
-            <label class="field">
-              <span>Order</span>
-              <input id="subjectOrderInput" type="number" min="1" step="1" placeholder="1">
             </label>
             <label class="field checkbox-row">
               <input id="subjectActiveInput" type="checkbox" checked>
               <span>Active</span>
             </label>
-            <label class="field">
-              <span>Note</span>
-              <input id="subjectNoteInput" type="text" placeholder="Optional internal note">
-            </label>
+            <details class="advanced-panel">
+              <summary>More subject details</summary>
+              <label class="field">
+                <span>Slug</span>
+                <input id="subjectSlugInput" type="text" placeholder="ap-psychology">
+              </label>
+              <label class="field">
+                <span>Sort order</span>
+                <input id="subjectOrderInput" type="number" min="1" step="1" placeholder="1">
+              </label>
+              <label class="field">
+                <span>Note</span>
+                <input id="subjectNoteInput" type="text" placeholder="Optional internal note">
+              </label>
+            </details>
             <div class="editor-actions">
               <button class="btn-secondary" id="deleteSubjectBtn" type="button">Delete subject</button>
             </div>
@@ -77,17 +107,27 @@
         </div>
       </section>
 
-      <section class="admin-section">
-        <h2>Lesson types / mappings</h2>
-        <div class="admin-split">
+      <section class="admin-tab-panel hidden" data-panel="services">
+        <div class="section-banner">
           <div>
-            <div id="serviceList" class="record-list"></div>
+            <h2>Lesson types</h2>
+            <p>Choose the subject, lesson format, and tier. Then paste the booking system ID or link that belongs to it.</p>
           </div>
-          <div class="record-editor">
+          <div class="section-actions">
+            <input id="serviceSearchInput" class="section-search" type="search" placeholder="Search lesson types">
+            <button class="btn-secondary" id="addServiceBtn" type="button">Add lesson type</button>
+          </div>
+        </div>
+        <div class="admin-split">
+          <div class="record-list-wrap">
+            <div class="record-list" id="serviceList"></div>
+          </div>
+          <div class="record-editor sticky-editor">
             <div class="record-editor-head">
-              <strong>Selected lesson type</strong>
+              <strong>Lesson type editor</strong>
               <span id="serviceStatus" class="status-pill"></span>
             </div>
+            <p class="editor-note">This is the part Fin maps to the booking system. If the ID is missing, the booking flow will show it as unmapped.</p>
             <label class="field">
               <span>Subject</span>
               <select id="serviceSubjectInput"></select>
@@ -116,25 +156,28 @@
               <span>Acuity appointment type ID</span>
               <input id="serviceAppointmentTypeInput" type="text" placeholder="95402082">
             </label>
-            <label class="field">
-              <span>Acuity product / package ID</span>
-              <input id="serviceProductInput" type="text" placeholder="2253280">
-            </label>
-            <label class="field">
-              <span>Calendar ID</span>
-              <input id="serviceCalendarInput" type="text" placeholder="14289294">
-            </label>
-            <label class="field">
-              <span>Direct booking link</span>
-              <input id="serviceLinkInput" type="url" placeholder="https://app.acuityscheduling.com/...">
-            </label>
+            <details class="advanced-panel">
+              <summary>More booking details</summary>
+              <label class="field">
+                <span>Product / package ID</span>
+                <input id="serviceProductInput" type="text" placeholder="2253280">
+              </label>
+              <label class="field">
+                <span>Calendar ID</span>
+                <input id="serviceCalendarInput" type="text" placeholder="14289294">
+              </label>
+              <label class="field">
+                <span>Direct booking link</span>
+                <input id="serviceLinkInput" type="url" placeholder="https://app.acuityscheduling.com/...">
+              </label>
+              <label class="field">
+                <span>Note</span>
+                <input id="serviceNoteInput" type="text" placeholder="Optional internal note">
+              </label>
+            </details>
             <label class="field checkbox-row">
               <input id="serviceActiveInput" type="checkbox" checked>
               <span>Active</span>
-            </label>
-            <label class="field">
-              <span>Note</span>
-              <input id="serviceNoteInput" type="text" placeholder="Optional internal note">
             </label>
             <div class="editor-actions">
               <button class="btn-secondary" id="deleteServiceBtn" type="button">Delete lesson type</button>
@@ -143,37 +186,57 @@
         </div>
       </section>
 
-      <section class="admin-section">
-        <h2>Current coupons</h2>
-        <div id="couponList" class="coupon-list"></div>
-      </section>
-
-      <section class="admin-section">
-        <h2>Selected coupon</h2>
-        <div class="coupon-editor">
-          <label class="field">
-            <span>Code</span>
-            <input id="codeInput" type="text" placeholder="FIN15">
-          </label>
-          <label class="field">
-            <span>Discount percent</span>
-            <input id="percentInput" type="number" min="1" max="100" step="1" placeholder="15">
-          </label>
-          <label class="field">
-            <span>Label</span>
-            <input id="labelInput" type="text" placeholder="Optional label">
-          </label>
-          <label class="field">
-            <span>Message</span>
-            <input id="messageInput" type="text" placeholder="Limited time coupon">
-          </label>
-          <label class="field checkbox-row">
-            <input id="activeInput" type="checkbox" checked>
-            <span>Active</span>
-          </label>
+      <section class="admin-tab-panel hidden" data-panel="coupons">
+        <div class="section-banner">
           <div>
-            <span class="field-label">Applies to packages</span>
-            <div id="packageList" class="package-checkboxes"></div>
+            <h2>Coupons</h2>
+            <p>These stay in the same dashboard so Fin can keep discounts in one place. Package targeting remains the same.</p>
+          </div>
+          <div class="section-actions">
+            <input id="couponSearchInput" class="section-search" type="search" placeholder="Search coupons">
+            <button class="btn-secondary" id="addCouponBtn" type="button">Add coupon</button>
+          </div>
+        </div>
+        <div class="admin-split">
+          <div class="record-list-wrap">
+            <div id="couponList" class="coupon-list"></div>
+          </div>
+          <div class="record-editor sticky-editor">
+            <div class="record-editor-head">
+              <strong>Coupon editor</strong>
+              <span id="couponStatus" class="status-pill"></span>
+            </div>
+            <p class="editor-note">Use a short code, a discount percent, and the packages it should apply to. Everything else is optional.</p>
+            <label class="field">
+              <span>Code</span>
+              <input id="codeInput" type="text" placeholder="FIN15">
+            </label>
+            <label class="field">
+              <span>Discount percent</span>
+              <input id="percentInput" type="number" min="1" max="100" step="1" placeholder="15">
+            </label>
+            <label class="field checkbox-row">
+              <input id="activeInput" type="checkbox" checked>
+              <span>Active</span>
+            </label>
+            <details class="advanced-panel">
+              <summary>More coupon details</summary>
+              <label class="field">
+                <span>Label</span>
+                <input id="labelInput" type="text" placeholder="Optional label">
+              </label>
+              <label class="field">
+                <span>Message</span>
+                <input id="messageInput" type="text" placeholder="Limited time coupon">
+              </label>
+              <div>
+                <span class="field-label">Applies to packages</span>
+                <div id="packageList" class="package-checkboxes"></div>
+              </div>
+            </details>
+            <div class="editor-actions">
+              <button class="btn-secondary" id="deleteCouponBtn" type="button">Delete coupon</button>
+            </div>
           </div>
         </div>
       </section>
