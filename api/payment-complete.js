@@ -64,7 +64,7 @@ function buildPaymentCompleteUrl({
   if (totalPrice !== undefined && totalPrice !== null && totalPrice !== "") {
     url.searchParams.set("totalPrice", String(totalPrice));
   }
-  url.searchParams.set("source", source || "custom-flow");
+  url.searchParams.set("source", productID ? "package" : (source || "custom-flow"));
   return url.toString();
 }
 

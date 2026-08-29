@@ -60,8 +60,27 @@
       oneToTwo: "Tutor + two students"
     }[format] || format;
 
+    function normalizePackageLink(rawLink) {
+      const target = new URL(rawLink || "/", location.origin);
+      if (isPackageTier) {
+        if (subject) target.searchParams.set("subject", subject);
+        if (format) target.searchParams.set("format", format);
+        if (tier) target.searchParams.set("tier", tier);
+        if (appointmentTypeID) target.searchParams.set("appointmentTypeID", appointmentTypeID);
+        if (email) target.searchParams.set("email", email);
+        if (backUrl) target.searchParams.set("backUrl", backUrl);
+        if (orderID) target.searchParams.set("orderID", orderID);
+        if (productID) target.searchParams.set("productID", productID);
+        if (certificate) target.searchParams.set("certificate", certificate);
+        if (couponCode) target.searchParams.set("couponCode", couponCode);
+        target.searchParams.set("source", "package");
+        target.searchParams.set("step", "2");
+      }
+      return target.toString();
+    }
+
     if (bookingLink) {
-      bookLink.href = bookingLink;
+      bookLink.href = normalizePackageLink(bookingLink);
     } else {
       const target = new URL("/", location.origin);
       if (subject) target.searchParams.set("subject", subject);
@@ -74,7 +93,7 @@
       if (productID) target.searchParams.set("productID", productID);
       if (certificate) target.searchParams.set("certificate", certificate);
       if (couponCode) target.searchParams.set("couponCode", couponCode);
-      target.searchParams.set("source", isPackageTier ? "receipt" : source);
+      target.searchParams.set("source", isPackageTier ? "package" : source);
       target.searchParams.set("step", bookingStep);
       bookLink.href = target.toString();
     }

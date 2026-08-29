@@ -34,5 +34,5 @@ test("buildPaymentCompleteUrl returns the booking return bridge", () => {
   assert.equal(parsed.searchParams.get("datetime"), "2026-09-01T14:00:00+01:00");
   assert.equal(parsed.searchParams.get("bookingLink"), "https://backend-ymlj.vercel.app/?subject=AP%20Psychology&step=2");
   assert.equal(parsed.searchParams.get("certificateCreated"), "1");
-  assert.equal(parsed.searchParams.get("source"), "mock-payment");
+  assert.equal(parsed.searchParams.get("source"), "package");
 });
