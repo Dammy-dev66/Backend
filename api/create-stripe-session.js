@@ -2,6 +2,7 @@ const { getStripeClient } = require("../lib/stripe");
 const { handleOptions, readJson, resolveBaseOrigin, resolvePublicOrigin, sendJson } = require("../lib/http");
 const { applyCoupon, couponAppliesToPackage, getCouponByCode } = require("../lib/coupons");
 const { resolveBasePrice, resolvePackageLabel } = require("../lib/pricing");
+const { buildSessionsLink } = require("../lib/receipt-email");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -89,6 +90,18 @@ module.exports = async function handler(req, res) {
     successUrl.searchParams.set("source", "stripe");
     successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
     if (metadata.studentName2) successUrl.searchParams.set("studentName2", metadata.studentName2);
+    successUrl.searchParams.set("bookingLink", buildSessionsLink({
+      subject,
+      format,
+      tier,
+      appointmentTypeID,
+      email: metadata.email,
+      productID: metadata.productID,
+      backUrl: metadata.backUrl,
+      couponCode: metadata.couponCode,
+      source: "receipt",
+      step: "2"
+    }, origin));
 
     const cancelUrl = new URL("/checkout.html", origin);
     Object.entries({
