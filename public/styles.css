@@ -470,20 +470,22 @@ h1 {
 
 .page.admin-page {
   max-width: 1220px;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 26px 22px 20px;
+  padding: 26px 22px 32px;
 }
 
 .admin-panel {
   flex: 1;
-  min-height: 0;
+  min-height: auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .admin-hero {
@@ -572,12 +574,12 @@ h1 {
 }
 
 .admin-tab-panel {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .section-banner {
@@ -622,13 +624,13 @@ h1 {
   grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
   gap: 14px;
   align-items: stretch;
-  min-height: 0;
-  flex: 1;
+  min-height: auto;
+  flex: 0 0 auto;
 }
 
 .record-list-wrap {
-  min-height: 0;
-  overflow: auto;
+  min-height: auto;
+  overflow: visible;
   border: 1px solid var(--line);
   background: #fff;
   padding: 10px;
@@ -667,8 +669,8 @@ h1 {
   border: 1px solid var(--line);
   background: #fff;
   padding: 14px;
-  min-height: 0;
-  overflow: auto;
+  min-height: auto;
+  overflow: visible;
 }
 
 .record-editor-head {
@@ -688,7 +690,8 @@ h1 {
 }
 
 .sticky-editor {
-  position: relative;
+  position: sticky;
+  top: 14px;
 }
 
 .editor-note {
@@ -834,5 +837,10 @@ h1 {
   .record-list-wrap,
   .record-editor {
     overflow: visible;
+  }
+
+  .sticky-editor {
+    position: relative;
+    top: auto;
   }
 }
