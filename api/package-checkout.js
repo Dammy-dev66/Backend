@@ -37,13 +37,14 @@ function buildPackageCheckoutUrl({
   const canonicalOrigin = resolvePublicOrigin(baseOrigin || "https://backend-ymlj.vercel.app");
   const url = new URL("/checkout.html", canonicalOrigin);
   const returnUrl = new URL("/return.html", canonicalOrigin);
-  ["subject", "format", "tier", "appointmentTypeID", "email", "backUrl"].forEach((key) => {
+  ["subject", "format", "tier", "appointmentTypeID", "email", "backUrl", "productID"].forEach((key) => {
     if (key === "email" && email) returnUrl.searchParams.set("email", email);
     if (key === "backUrl" && backUrl) returnUrl.searchParams.set("backUrl", backUrl);
     if (key === "subject") returnUrl.searchParams.set("subject", subject);
     if (key === "format") returnUrl.searchParams.set("format", format);
     if (key === "tier") returnUrl.searchParams.set("tier", tier);
     if (key === "appointmentTypeID") returnUrl.searchParams.set("appointmentTypeID", appointmentTypeID);
+    if (key === "productID" && productID) returnUrl.searchParams.set("productID", productID);
   });
   if (source) returnUrl.searchParams.set("source", source);
 

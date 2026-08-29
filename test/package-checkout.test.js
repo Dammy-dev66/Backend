@@ -32,6 +32,7 @@ test("buildPackageCheckoutUrl keeps the student on the custom checkout bridge", 
   assert.equal(parsed.searchParams.get("subject"), "AP Psychology");
   assert.equal(parsed.searchParams.get("tier"), "pack6");
   assert.equal(parsed.searchParams.get("source"), "custom-flow");
+  assert.equal(parsed.searchParams.get("productID"), "2253280");
   assert.equal(parsed.searchParams.get("datetime"), "2026-09-01T14:00:00+01:00");
   assert.equal(parsed.searchParams.get("calendarID"), "14289294");
   assert.equal(parsed.searchParams.get("firstName"), "Jane");
