@@ -63,6 +63,9 @@
     if (appointmentTypeID) target.searchParams.set("appointmentTypeID", appointmentTypeID);
     if (email) target.searchParams.set("email", email);
     if (backUrl) target.searchParams.set("backUrl", backUrl);
+    if (orderID) target.searchParams.set("orderID", orderID);
+    if (productID) target.searchParams.set("productID", productID);
+    if (certificate) target.searchParams.set("certificate", certificate);
     if (couponCode) target.searchParams.set("couponCode", couponCode);
     target.searchParams.set("source", productID ? "receipt" : source);
     target.searchParams.set("step", bookingStep);
