@@ -61,7 +61,15 @@
     }[format] || format;
 
     if (bookingLink) {
-      bookLink.href = bookingLink;
+      const target = new URL(bookingLink, location.origin);
+      if (isPackageTier) {
+        target.searchParams.delete("productID");
+        target.searchParams.delete("certificate");
+        target.searchParams.delete("orderID");
+        target.searchParams.set("source", "package-intake");
+        target.searchParams.set("step", "1");
+      }
+      bookLink.href = target.toString();
     } else {
       const target = new URL("/", location.origin);
       if (subject) target.searchParams.set("subject", subject);
