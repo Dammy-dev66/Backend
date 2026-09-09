@@ -233,7 +233,8 @@ h1 {
 
 .btn-primary,
 .btn-secondary,
-.btn-link {
+.btn-link,
+.btn-whatsapp {
   display: inline-block;
   margin-top: 8px;
   border: 0;
@@ -250,6 +251,19 @@ h1 {
 .btn-link {
   background: var(--ink);
   color: var(--panel);
+}
+
+.btn-whatsapp {
+  background: #1f9d55;
+  color: #fff;
+  border: 1px solid #1f9d55;
+}
+
+.btn-whatsapp:hover,
+.btn-whatsapp:focus-visible {
+  background: #16763f;
+  border-color: #16763f;
+  color: #fff;
 }
 
 .btn-pay {

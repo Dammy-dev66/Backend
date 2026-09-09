@@ -688,6 +688,15 @@ function bookingLabel() {
   return `${selectedSubject().name} - ${selectedFormat().label}`;
 }
 
+function showTutorWhatsAppLink() {
+  const link = $("chatTutorLink");
+  if (!link) return;
+
+  const message = "Hi Fin, I have just booked " + bookingLabel() + " and would like to ask a question.";
+  link.href = "https://wa.me/353899792541?text=" + encodeURIComponent(message);
+  link.classList.remove("hidden");
+}
+
 function showCompletedBooking({ datetime }) {
   const pending = savedPendingBooking();
   const slotLabel = datetime
@@ -713,6 +722,7 @@ function showCompletedBooking({ datetime }) {
     const label = item.date && item.time ? `${item.date} at ${item.time}` : slotLabel;
     return `<li><strong>${label}</strong></li>`;
   }).join("");
+  showTutorWhatsAppLink();
   setStep(4);
 }
 
@@ -809,6 +819,7 @@ async function finishBooking() {
   $("confirmedList").innerHTML = confirmed.map((item) =>
     `<li><strong>${item.date} at ${item.time}</strong><br><a href="${item.appointment?.confirmationPage || "#"}" target="_blank" rel="noopener">View appointment details</a></li>`
   ).join("");
+  showTutorWhatsAppLink();
   setStep(4);
 }
 
