@@ -253,17 +253,42 @@ h1 {
   color: var(--panel);
 }
 
+.whatsapp-cta {
+  margin-top: 24px;
+  padding: 18px 20px;
+  border: 1px solid #b9e8c9;
+  background: #f0fbf4;
+}
+
+.whatsapp-help {
+  margin: 0 0 12px;
+  color: #174b2d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .btn-whatsapp {
-  background: #1f9d55;
-  color: #fff;
-  border: 1px solid #1f9d55;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #25d366;
+  color: #082b17;
+  border: 1px solid #25d366;
+  box-shadow: 0 2px 0 #128c4a;
+}
+
+.whatsapp-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
 }
 
 .btn-whatsapp:hover,
 .btn-whatsapp:focus-visible {
-  background: #16763f;
-  border-color: #16763f;
-  color: #fff;
+  background: #20bd59;
+  border-color: #128c4a;
+  color: #062412;
+  box-shadow: 0 2px 0 #0b6d39;
 }
 
 .btn-pay {

@@ -689,12 +689,13 @@ function bookingLabel() {
 }
 
 function showTutorWhatsAppLink() {
+  const cta = $("chatTutorCta");
   const link = $("chatTutorLink");
-  if (!link) return;
+  if (!cta || !link) return;
 
   const message = "Hi Fin, I have just booked " + bookingLabel() + " and would like to ask a question.";
   link.href = "https://wa.me/353899792541?text=" + encodeURIComponent(message);
-  link.classList.remove("hidden");
+  cta.classList.remove("hidden");
 }
 
 function showCompletedBooking({ datetime }) {
