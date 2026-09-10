@@ -148,12 +148,21 @@
     };
   }
 
+  function subjectSlug(subject) {
+    return String(subject.slug || subject.id || subject.name || "subject")
+      .toLowerCase()
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "subject";
+  }
+
   function buildSubjectCard(subject, index) {
     var meta = subjectMeta(subject, index);
     var mappedCount = Number(subject.mappedCount || 0);
     var note = mappedCount > 0
       ? meta.description
       : (subject.note || "Add matching lesson types in the dashboard to connect this subject.");
+    var courseInfoUrl = subject.courseInfoUrl || subject.infoUrl || "#course-info-" + subjectSlug(subject);
 
     return [
       '<article class="fb-subject-card">',
@@ -165,7 +174,7 @@
       '<h3>' + escapeHtml(subject.name) + '</h3>',
       '<p>' + escapeHtml(note) + '</p>',
       '<div class="fb-card-actions">',
-      '<span class="fb-learn-link">Learn more</span>',
+      '<a class="fb-learn-link" href="' + escapeHtml(courseInfoUrl) + '">Course info</a>',
       '<button type="button" class="fb-book-link" data-subject="' + escapeHtml(subject.name) + '">Book this ↗</button>',
       '</div>',
       '</div>',
