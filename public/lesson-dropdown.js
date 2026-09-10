@@ -156,13 +156,27 @@
       .replace(/^-+|-+$/g, "") || "subject";
   }
 
+  function courseInfoAnchor(subject) {
+    var name = String(subject.name || "").trim().toLowerCase();
+    var anchors = {
+      "ap english language": "#ap-english-language",
+      "ap english language & composition": "#ap-english-language",
+      "ap psychology": "#ap-psychology",
+      "english literature": "#english-literature",
+      "essay writing": "#essay-writing",
+      "elegant essays": "#elegant-essays"
+    };
+
+    return anchors[name] || "#" + subjectSlug(subject);
+  }
+
   function buildSubjectCard(subject, index) {
     var meta = subjectMeta(subject, index);
     var mappedCount = Number(subject.mappedCount || 0);
     var note = mappedCount > 0
       ? meta.description
       : (subject.note || "Add matching lesson types in the dashboard to connect this subject.");
-    var courseInfoUrl = subject.courseInfoUrl || subject.infoUrl || "#course-info-" + subjectSlug(subject);
+    var courseInfoUrl = subject.courseInfoUrl || subject.infoUrl || courseInfoAnchor(subject);
 
     return [
       '<article class="fb-subject-card">',
