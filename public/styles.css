@@ -28,9 +28,15 @@ body {
 
 .brand {
   display: flex;
-  gap: 13px;
   align-items: center;
   margin-bottom: 34px;
+}
+
+.brand-logo {
+  display: block;
+  width: 232px;
+  max-width: 100%;
+  height: auto;
 }
 
 .brand-mark {
