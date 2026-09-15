@@ -35,25 +35,27 @@ body {
 .brand-logo-lockup {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   text-decoration: none;
 }
 
 .brand-logo-frame {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
   overflow: hidden;
-  border: 1px solid var(--navy);
+  border: 1.5px solid var(--navy);
   border-radius: 50%;
   background: #fff;
 }
 
 .brand-logo-frame img {
   display: block;
-  width: 30px;
-  height: 30px;
+  width: 43px;
+  height: 43px;
   object-fit: contain;
 }
 
