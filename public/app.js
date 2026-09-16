@@ -440,9 +440,10 @@ async function checkoutBridgeUrl(details = {}) {
 async function resumeReturnedPackage() {
   const params = new URLSearchParams(location.search);
   const email = state.packageEmail || params.get("email") || "";
+  const certificate = state.certificate || params.get("certificate") || "";
   const orderID = params.get("orderID") || state.returnOrderID || "";
 
-  if (!email) {
+  if (!email && !certificate) {
     return;
   }
 
@@ -452,14 +453,16 @@ async function resumeReturnedPackage() {
 
   try {
     const resolved = await resolvePackageEntitlement({
-      email,
-      orderID,
+      email: certificate ? undefined : email,
+      certificate: certificate || undefined,
+      orderID: certificate ? undefined : orderID,
       productID: state.productID
     });
     state.packageMode = "redeem";
     setPackageMode("redeem");
     state.packageEmail = email;
     state.certificate = resolved.certificate;
+    state.packageCode = resolved.certificate;
     state.remaining = resolved.remaining || selectedTier().sessions || 1;
     $("email").value = email;
     $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
@@ -825,11 +828,24 @@ async function finishBooking() {
   $("finishBtn").textContent = "Confirm package sessions";
 
   $("finishTitle").textContent = failed.length ? "Some sessions need attention." : "Sessions confirmed.";
-  const remainingAfterBooking = Math.max(0, Number(state.remaining) - confirmed.length);
+  let remainingAfterBooking = Math.max(0, Number(state.remaining) - confirmed.length);
+  if (confirmed.length && state.certificate) {
+    try {
+      const balance = await resolvePackageEntitlement({
+        certificate: state.certificate,
+        email: state.packageEmail || details.email || undefined,
+        productID: state.productID
+      });
+      state.remaining = balance.remaining;
+      remainingAfterBooking = balance.remaining;
+    } catch {
+      // Keep the conservative local count if the balance refresh is temporarily unavailable.
+    }
+  }
   $("finishMessage").textContent = failed.length
     ? `${confirmed.length} of ${state.selected.length} sessions were confirmed. Please contact us for the remaining ${failed.length}.`
     : remainingAfterBooking > 0
-      ? `${confirmed.length} session(s) confirmed. You still have ${remainingAfterBooking} session(s) remaining in this package. Use your email link later to book them.`
+      ? `${confirmed.length} session(s) confirmed. You still have ${remainingAfterBooking} session(s) remaining in this package. Use your package code later to book them.`
       : "All package sessions have been confirmed. A receipt has been sent for each session.";
   $("confirmedList").innerHTML = confirmed.map((item) =>
     `<li><strong>${item.date} at ${item.time}</strong><br><a href="${item.appointment?.confirmationPage || "#"}" target="_blank" rel="noopener">View appointment details</a></li>`
