@@ -90,7 +90,6 @@ module.exports = async function handler(req, res) {
           const resolved = await resolvePackageCertificate({
             email,
             appointmentTypeID: Number(metadata.appointmentTypeID),
-            orderID: cleanString(metadata.orderID || session.id),
             productID: cleanString(metadata.productID)
           });
           certificate = cleanString(resolved.certificate);
