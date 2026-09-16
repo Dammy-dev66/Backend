@@ -1,4 +1,4 @@
-const { createAppointment, createCertificate, extractCertificateCode } = require("../lib/acuity");
+const { createAppointment, createCertificate, extractCertificateCode, resolvePackageCertificate } = require("../lib/acuity");
 const { getStripeClient } = require("../lib/stripe");
 const { handleOptions, readJson, resolveBaseOrigin, resolvePublicOrigin, sendJson } = require("../lib/http");
 const {
@@ -84,6 +84,20 @@ module.exports = async function handler(req, res) {
       const email = cleanString(session.customer_details?.email)
         || cleanString(session.customer_email)
         || cleanString(metadata.email);
+      let certificate = cleanString(metadata.certificate);
+      if (!certificate && metadata.productID && email && metadata.appointmentTypeID) {
+        try {
+          const resolved = await resolvePackageCertificate({
+            email,
+            appointmentTypeID: Number(metadata.appointmentTypeID),
+            orderID: cleanString(metadata.orderID || session.id),
+            productID: cleanString(metadata.productID)
+          });
+          certificate = cleanString(resolved.certificate);
+        } catch {
+          // The webhook may still be creating the Acuity package code.
+        }
+      }
 
       return sendJson(req, res, 200, {
         ok: true,
@@ -93,7 +107,7 @@ module.exports = async function handler(req, res) {
         tier: cleanString(metadata.tier),
         appointmentTypeID: cleanString(metadata.appointmentTypeID),
         productID: cleanString(metadata.productID),
-        certificate: cleanString(metadata.certificate),
+        certificate,
         backUrl: cleanString(metadata.backUrl),
         couponCode: cleanString(metadata.couponCode)
       });
