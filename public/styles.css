@@ -39,6 +39,13 @@ body {
   text-decoration: none;
 }
 
+.brand-logo-full {
+  display: block;
+  width: 280px;
+  max-width: 100%;
+  height: auto;
+}
+
 .brand-logo-frame {
   display: flex;
   align-items: center;
