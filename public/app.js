@@ -379,7 +379,15 @@ function updateChoiceUI() {
   const price = format.price[tier.key];
   $("choiceSummary").innerHTML = `<strong>${selectedSubject().name}</strong><br>${format.label} - ${tier.label} - ${money(price)}`;
   $("packageChoice").classList.toggle("hidden", !tier.needsPackage);
-  $("certificateFields").classList.toggle("hidden", !tier.needsPackage || state.packageMode === "buy");
+  $("certificateFields").classList.toggle("hidden", !tier.needsPackage);
+  if (tier.needsPackage) {
+    $("certificateFields").querySelector(".field span").textContent = state.packageMode === "buy"
+      ? "Email for your package"
+      : "Email used for your package";
+    $("certificateFields").querySelector(".field-hint").textContent = state.packageMode === "buy"
+      ? "Use the same email at payment so your sessions open automatically after checkout."
+      : "We will look up your package automatically. No code is needed.";
+  }
   const mappingReady = Boolean(state.appointmentTypeID);
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
     ? "Pay"
@@ -475,12 +483,18 @@ async function continueFromChoice() {
   const tier = selectedTier();
 
   if (tier.needsPackage && state.packageMode === "buy") {
+    const packageEmail = $("packageEmailInput").value.trim();
+    if (!packageEmail) {
+      $("step1Error").textContent = "Enter your email before paying so your sessions can open automatically.";
+      $("packageEmailInput").focus();
+      return;
+    }
     sessionStorage.setItem("finbarReturnSelection", JSON.stringify({
       subject: selectedSubject().name,
       format: state.formatKey,
       tier: state.tierKey,
       appointmentTypeID: state.appointmentTypeID,
-      packageEmail: $("packageEmailInput").value.trim(),
+      packageEmail,
       backUrl: state.backUrl
     }));
     $("continueChoiceBtn").disabled = true;
