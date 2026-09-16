@@ -74,6 +74,25 @@ test("receipt payload keeps the customer and copy recipient together", () => {
   assert.match(payload.text, /Go to sessions:/);
 });
 
+test("two-student receipt payload includes both student names for Make", () => {
+  const payload = buildReceiptPayload({
+    customerEmail: "student@example.com",
+    subject: "English Literature",
+    format: "oneToTwo",
+    tier: "single",
+    appointmentTypeID: "96938789",
+    totalPrice: 70,
+    recipientName: "Parent",
+    studentName: "Alice Example",
+    studentName2: "Ben Example"
+  });
+
+  assert.equal(payload.studentName, "Alice Example");
+  assert.equal(payload.studentName2, "Ben Example");
+  assert.equal(payload.receipt.studentName, "Alice Example");
+  assert.equal(payload.receipt.studentName2, "Ben Example");
+});
+
 test("booking confirmation falls back to the Make webhook when the env var is missing", async () => {
   const originalWebhook = process.env.MAKE_RECEIPT_WEBHOOK_URL;
   delete process.env.MAKE_RECEIPT_WEBHOOK_URL;

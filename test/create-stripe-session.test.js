@@ -66,3 +66,40 @@ test("create-stripe-session includes the exact sessions link on the Stripe succe
   assert.equal(successUrl.searchParams.get("source"), "stripe");
   assert.equal(successUrl.searchParams.get("bookingLink"), "https://backend-ymlj.vercel.app/?subject=English+Literature&format=oneToTwo&tier=pack6&appointmentTypeID=96938926&email=student%40example.com&productID=2260532&backUrl=https%3A%2F%2Fcarrd.example&step=2&source=receipt");
 });
+
+test("create-stripe-session preserves both student names in Stripe metadata", async () => {
+  const calls = [];
+  const handler = loadHandlerWithStub({
+    getStripeClient: () => ({
+      checkout: {
+        sessions: {
+          create: async (payload) => {
+            calls.push(payload);
+            return { url: "https://stripe.example/session" };
+          }
+        }
+      }
+    })
+  });
+
+  const req = Readable.from([Buffer.from(JSON.stringify({
+    subject: "English Literature",
+    format: "oneToTwo",
+    tier: "single",
+    appointmentTypeID: "96938789",
+    email: "student@example.com",
+    firstName: "Parent",
+    lastName: "Example",
+    studentName: "Alice Example",
+    studentName2: "Ben Example"
+  }))]);
+  req.method = "POST";
+  req.headers = { origin: "https://backend-ymlj.vercel.app" };
+
+  const res = makeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls[0].metadata.studentName, "Alice Example");
+  assert.equal(calls[0].metadata.studentName2, "Ben Example");
+});

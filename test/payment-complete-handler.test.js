@@ -2,6 +2,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Readable } = require("node:stream");
 
+const originalFetch = global.fetch;
+test.beforeEach(() => {
+  global.fetch = async () => ({ ok: true, text: async () => "ok" });
+});
+test.afterEach(() => {
+  global.fetch = originalFetch;
+});
+
 function makeResponse() {
   return {
     statusCode: 0,

@@ -191,10 +191,7 @@ function handleReturnTarget(target) {
 }
 
 function openInNewTab(url) {
-  const tab = window.open(url, "_blank");
-  if (tab) {
-    tab.focus();
-  }
+  window.location.assign(url);
 }
 
 async function api(path, opts = {}) {
@@ -814,9 +811,12 @@ async function finishBooking() {
   $("finishBtn").textContent = "Confirm package sessions";
 
   $("finishTitle").textContent = failed.length ? "Some sessions need attention." : "Sessions confirmed.";
+  const remainingAfterBooking = Math.max(0, Number(state.remaining) - confirmed.length);
   $("finishMessage").textContent = failed.length
     ? `${confirmed.length} of ${state.selected.length} sessions were confirmed. Please contact us for the remaining ${failed.length}.`
-    : "A receipt has been sent for each confirmed session.";
+    : remainingAfterBooking > 0
+      ? `${confirmed.length} session(s) confirmed. You still have ${remainingAfterBooking} session(s) remaining in this package. Use your email link later to book them.`
+      : "All package sessions have been confirmed. A receipt has been sent for each session.";
   $("confirmedList").innerHTML = confirmed.map((item) =>
     `<li><strong>${item.date} at ${item.time}</strong><br><a href="${item.appointment?.confirmationPage || "#"}" target="_blank" rel="noopener">View appointment details</a></li>`
   ).join("");
