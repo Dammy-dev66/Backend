@@ -86,6 +86,33 @@
     }
     bookLink.textContent = isPackageTier ? "Go to sessions" : "Book again";
 
+    async function enrichThankYouSessionsLink() {
+      if (!isPackageTier || email || !params.get("session_id")) return;
+
+      try {
+        const response = await fetch(`/api/session-context?session_id=${encodeURIComponent(params.get("session_id"))}`);
+        const context = await response.json().catch(() => ({}));
+        if (!response.ok || !context.ok || !context.email) return;
+
+        const target = new URL(bookLink.href, location.origin);
+        target.searchParams.set("email", context.email);
+        if (context.subject) target.searchParams.set("subject", context.subject);
+        if (context.format) target.searchParams.set("format", context.format);
+        if (context.tier) target.searchParams.set("tier", context.tier);
+        if (context.appointmentTypeID) target.searchParams.set("appointmentTypeID", context.appointmentTypeID);
+        if (context.productID) target.searchParams.set("productID", context.productID);
+        if (context.backUrl) target.searchParams.set("backUrl", context.backUrl);
+        if (context.couponCode) target.searchParams.set("couponCode", context.couponCode);
+        target.searchParams.set("source", "package");
+        target.searchParams.set("step", "2");
+        bookLink.href = target.toString();
+      } catch {
+        // The normal step-1 fallback remains available if Stripe context cannot be read.
+      }
+    }
+
+    enrichThankYouSessionsLink();
+
     summary.innerHTML = `
       <strong>${subject}</strong><br>
       ${formatLabel || "Booking"}${tier ? ` - ${tier}` : ""}
