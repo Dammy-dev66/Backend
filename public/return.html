@@ -90,7 +90,7 @@
       if (!isPackageTier || email || !params.get("session_id")) return;
 
       try {
-        const response = await fetch(`/api/session-context?session_id=${encodeURIComponent(params.get("session_id"))}`);
+        const response = await fetch(`/api/payment-complete?session_id=${encodeURIComponent(params.get("session_id"))}`);
         const context = await response.json().catch(() => ({}));
         if (!response.ok || !context.ok || !context.email) return;
 
