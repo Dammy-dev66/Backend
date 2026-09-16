@@ -388,6 +388,7 @@ function updateChoiceUI() {
       : "Enter the code from your package receipt. No email is needed here.";
     $("packageEmailInput").type = state.packageMode === "buy" ? "email" : "text";
     $("packageEmailInput").placeholder = state.packageMode === "buy" ? "you@example.com" : "e.g. 3535CF7E";
+    $("packageEmailInput").value = state.packageMode === "buy" ? state.packageEmail : state.packageCode;
   }
   const mappingReady = Boolean(state.appointmentTypeID);
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
@@ -842,6 +843,14 @@ async function finishBooking() {
 });
 $("redeemPackageBtn").addEventListener("click", () => setPackageMode("redeem"));
 $("buyPackageBtn").addEventListener("click", () => setPackageMode("buy"));
+$("packageEmailInput").addEventListener("input", (event) => {
+  if (state.packageMode === "buy") {
+    state.packageEmail = event.target.value;
+  } else {
+    state.packageCode = event.target.value.toUpperCase();
+    event.target.value = state.packageCode;
+  }
+});
 $("continueChoiceBtn").addEventListener("click", continueFromChoice);
 $("backToChoiceBtn").addEventListener("click", () => setStep(1));
 $("toStep3Btn").addEventListener("click", goToDetails);
