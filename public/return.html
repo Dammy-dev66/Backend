@@ -34,7 +34,7 @@
     const title = document.getElementById("confirmTitle");
     const lead = document.getElementById("confirmLead");
     const summary = document.getElementById("confirmSummary");
-    const error = document.getElementById("confirmError");
+      const error = document.getElementById("confirmError");
     const bookLink = document.getElementById("bookLink");
 
     const subject = params.get("subject") || saved.subject || "your lesson";
@@ -51,9 +51,9 @@
     const totalPrice = params.get("totalPrice") || "";
     const source = params.get("source") || "stripe";
     const isPackageTier = /^pack/i.test(tier);
-    // The thank-you link may not contain the email/certificate needed to resume a package.
-    // In that case, open the package form first instead of showing an empty times screen.
-    const canResumePackage = isPackageTier && Boolean(email && (certificate || productID || appointmentTypeID));
+    let packageCode = certificate;
+    // The package code identifies the purchase; email is only contact data.
+    const canResumePackage = isPackageTier && Boolean(certificate);
     const bookingStep = canResumePackage ? "2" : "1";
 
     const formatLabel = {
@@ -84,40 +84,56 @@
       target.searchParams.set("step", bookingStep);
       bookLink.href = target.toString();
     }
-    bookLink.textContent = isPackageTier ? "Go to sessions" : "Book again";
+    bookLink.textContent = isPackageTier && !canResumePackage ? "Preparing sessions..." : (isPackageTier ? "Go to sessions" : "Book again");
 
     async function enrichThankYouSessionsLink() {
-      if (!isPackageTier || email || !params.get("session_id")) return;
+      if (!isPackageTier || certificate || !params.get("session_id")) return;
 
-      try {
-        const response = await fetch(`/api/payment-complete?session_id=${encodeURIComponent(params.get("session_id"))}`);
-        const context = await response.json().catch(() => ({}));
-        if (!response.ok || !context.ok || !context.email) return;
+      for (let attempt = 0; attempt < 15; attempt += 1) {
+        try {
+          const response = await fetch(`/api/payment-complete?session_id=${encodeURIComponent(params.get("session_id"))}`);
+          const context = await response.json().catch(() => ({}));
+          if (response.ok && context.ok && context.certificate) {
+            const target = new URL(bookLink.href, location.origin);
+            if (context.email) target.searchParams.set("email", context.email);
+            packageCode = context.certificate;
+            target.searchParams.set("certificate", context.certificate);
+            if (context.subject) target.searchParams.set("subject", context.subject);
+            if (context.format) target.searchParams.set("format", context.format);
+            if (context.tier) target.searchParams.set("tier", context.tier);
+            if (context.appointmentTypeID) target.searchParams.set("appointmentTypeID", context.appointmentTypeID);
+            if (context.productID) target.searchParams.set("productID", context.productID);
+            if (context.backUrl) target.searchParams.set("backUrl", context.backUrl);
+            if (context.couponCode) target.searchParams.set("couponCode", context.couponCode);
+            target.searchParams.set("source", "package");
+            target.searchParams.set("step", "2");
+            bookLink.href = target.toString();
+            bookLink.textContent = "Go to sessions";
+            renderSummary();
+            return;
+          }
+        } catch {
+          // Keep polling while the payment webhook finishes.
+        }
 
-        const target = new URL(bookLink.href, location.origin);
-        target.searchParams.set("email", context.email);
-        if (context.subject) target.searchParams.set("subject", context.subject);
-        if (context.format) target.searchParams.set("format", context.format);
-        if (context.tier) target.searchParams.set("tier", context.tier);
-        if (context.appointmentTypeID) target.searchParams.set("appointmentTypeID", context.appointmentTypeID);
-        if (context.productID) target.searchParams.set("productID", context.productID);
-        if (context.backUrl) target.searchParams.set("backUrl", context.backUrl);
-        if (context.couponCode) target.searchParams.set("couponCode", context.couponCode);
-        target.searchParams.set("source", "package");
-        target.searchParams.set("step", "2");
-        bookLink.href = target.toString();
-      } catch {
-        // The normal step-1 fallback remains available if Stripe context cannot be read.
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+
+      bookLink.textContent = "Use the code in your email";
+      error.textContent = "Your package code is still being prepared. Please refresh this page in a moment.";
     }
 
     enrichThankYouSessionsLink();
 
-    summary.innerHTML = `
+    function renderSummary() {
+      summary.innerHTML = `
       <strong>${subject}</strong><br>
       ${formatLabel || "Booking"}${tier ? ` - ${tier}` : ""}
       ${totalPrice ? `<br><span class="muted">Total: EUR ${Number(totalPrice).toFixed(2)}</span>` : ""}
+      ${packageCode ? `<br><strong>Package code:</strong> ${packageCode}` : ""}
     `;
+    }
+    renderSummary();
 
     if (!params.get("session_id")) {
       error.textContent = "We could not confirm the payment session in this tab, but the button still takes you back to the custom flow.";

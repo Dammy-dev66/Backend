@@ -71,7 +71,10 @@ test("receipt payload keeps the customer and copy recipient together", () => {
   assert.equal(payload.copyEmail, "fin@example.com");
   assert.equal(payload.receipt.certificate, "CERT-123");
   assert.match(payload.html, /Go to sessions/);
+  assert.match(payload.html, /Package code/);
+  assert.match(payload.html, /CERT-123/);
   assert.match(payload.text, /Go to sessions:/);
+  assert.match(payload.text, /Package code: CERT-123/);
 });
 
 test("two-student receipt payload includes both student names for Make", () => {

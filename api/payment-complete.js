@@ -93,6 +93,7 @@ module.exports = async function handler(req, res) {
         tier: cleanString(metadata.tier),
         appointmentTypeID: cleanString(metadata.appointmentTypeID),
         productID: cleanString(metadata.productID),
+        certificate: cleanString(metadata.certificate),
         backUrl: cleanString(metadata.backUrl),
         couponCode: cleanString(metadata.couponCode)
       });

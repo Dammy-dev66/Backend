@@ -34,16 +34,17 @@ module.exports = async function handler(req, res) {
   try {
     const rawBody = await readRawBody(req);
     let event = null;
+    let stripeClient = null;
     const stripeSignature = req.headers["stripe-signature"] || req.headers["Stripe-Signature"];
     const secret = cleanString(process.env.STRIPE_WEBHOOK_SECRET);
 
     if (secret) {
-      const stripe = require("../../lib/stripe").getStripeClient();
+      stripeClient = require("../../lib/stripe").getStripeClient();
       if (!stripeSignature) {
         return sendJson(req, res, 400, { ok: false, error: "Missing Stripe signature." });
       }
 
-      event = stripe.webhooks.constructEvent(rawBody, stripeSignature, secret);
+      event = stripeClient.webhooks.constructEvent(rawBody, stripeSignature, secret);
     } else {
       event = JSON.parse(rawBody || "{}");
     }
@@ -95,6 +96,12 @@ module.exports = async function handler(req, res) {
       });
       certificateCode = certificateCode || extractCertificateCode(certificateResponse);
       certificateCreated = true;
+
+      if (certificateCode && stripeClient && session.id) {
+        await stripeClient.checkout.sessions.update(session.id, {
+          metadata: { ...metadata, certificate: certificateCode }
+        });
+      }
     }
 
     if (!productID && datetime && firstName && lastName && acuityReady) {
