@@ -136,7 +136,9 @@ module.exports = async function handler(req, res) {
       backUrl,
       couponCode,
       totalPrice,
-      recipientName: firstName
+      recipientName: firstName,
+      studentName,
+      studentName2
     });
 
     return sendJson(req, res, 200, {

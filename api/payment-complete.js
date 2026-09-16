@@ -136,7 +136,9 @@ module.exports = async function handler(req, res) {
         backUrl,
         couponCode,
         totalPrice,
-        recipientName: firstName || email
+        recipientName: firstName || email,
+        studentName,
+        studentName2
       });
     }
 
@@ -177,7 +179,9 @@ module.exports = async function handler(req, res) {
           backUrl,
           couponCode,
           totalPrice,
-          recipientName: firstName || email
+          recipientName: firstName || email,
+          studentName,
+          studentName2
         });
       }
     }
