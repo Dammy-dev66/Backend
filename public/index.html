@@ -54,7 +54,7 @@
         <div class="package-choice hidden" id="packageChoice">
           <button class="choice-card active" id="redeemPackageBtn" type="button">
             <strong>Use an existing package</strong>
-            <span>Enter the email used when you bought the package.</span>
+            <span>Enter the package code from your receipt email.</span>
           </button>
           <button class="choice-card" id="buyPackageBtn" type="button">
             <strong>Buy a package now</strong>
@@ -64,10 +64,10 @@
 
         <div id="certificateFields">
           <label class="field">
-            <span>Email used for your package</span>
-            <input type="email" id="packageEmailInput" placeholder="you@example.com" autocomplete="email">
+            <span>Package code</span>
+            <input type="text" id="packageEmailInput" placeholder="e.g. 3535CF7E" autocomplete="off" autocapitalize="characters">
           </label>
-          <p class="field-hint">We will look up your package automatically. No code is needed.</p>
+          <p class="field-hint">Enter the code from your package receipt. No email is needed here.</p>
         </div>
 
         <button class="btn-primary" id="continueChoiceBtn" type="button">Select dates/times</button>

@@ -1,4 +1,4 @@
-const { resolvePackageCertificate } = require("../lib/acuity");
+const { checkCertificate, resolvePackageCertificate } = require("../lib/acuity");
 const { handleOptions, readJson, sendJson } = require("../lib/http");
 
 function requireString(body, field) {
@@ -20,19 +20,25 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = await readJson(req);
-    const email = requireString(body, "email");
+    const certificate = typeof body.certificate === "string" ? body.certificate.trim() : "";
+    const email = certificate ? (typeof body.email === "string" ? body.email.trim() : "") : requireString(body, "email");
     const appointmentTypeID = Number(body.appointmentTypeID);
 
     if (!Number.isInteger(appointmentTypeID)) {
       return sendJson(req, res, 400, { ok: false, error: "appointmentTypeID must be an integer." });
     }
 
-    const resolved = await resolvePackageCertificate({
-      email,
-      appointmentTypeID,
-      orderID: typeof body.orderID === "string" ? body.orderID.trim() : undefined,
-      productID: typeof body.productID === "string" ? body.productID.trim() : undefined
-    });
+    const resolved = certificate
+      ? {
+          certificate,
+          certificateStatus: await checkCertificate({ certificate, appointmentTypeID, email })
+        }
+      : await resolvePackageCertificate({
+          email,
+          appointmentTypeID,
+          orderID: typeof body.orderID === "string" ? body.orderID.trim() : undefined,
+          productID: typeof body.productID === "string" ? body.productID.trim() : undefined
+        });
 
     return sendJson(req, res, 200, {
       ok: true,

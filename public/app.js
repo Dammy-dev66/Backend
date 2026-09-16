@@ -49,6 +49,7 @@ const state = {
   appointmentTypeID: null,
   productID: null,
   certificate: "",
+  packageCode: "",
   packageEmail: "",
   backUrl: "",
   returnSource: "",
@@ -203,11 +204,12 @@ async function api(path, opts = {}) {
   return { ok: res.ok, data };
 }
 
-async function resolvePackageEntitlement({ email, orderID, productID }) {
+async function resolvePackageEntitlement({ email, certificate, orderID, productID }) {
   const { ok, data } = await api("/api/resolve-package", {
     method: "POST",
     body: JSON.stringify({
       email,
+      certificate,
       appointmentTypeID: state.appointmentTypeID,
       orderID,
       productID
@@ -215,7 +217,7 @@ async function resolvePackageEntitlement({ email, orderID, productID }) {
   });
 
   if (!ok || !data.ok || !data.packageValid) {
-    throw new Error(data.error || "We could not find an active package for that email.");
+    throw new Error(data.error || "We could not find an active package for that code.");
   }
 
   const remaining = data.certificate?.remainingCounts?.[String(state.appointmentTypeID)]
@@ -327,15 +329,12 @@ function populateSelectors() {
 
   if (email) {
     state.packageEmail = email;
-    $("packageEmailInput").value = email;
   }
 
   if (certificate) {
     state.certificate = certificate;
-  }
-
-  if (saved.packageEmail && !$("packageEmailInput").value) {
-    $("packageEmailInput").value = saved.packageEmail;
+    state.packageCode = certificate;
+    $("packageEmailInput").value = certificate;
   }
 
   syncBackLinks();
@@ -383,10 +382,12 @@ function updateChoiceUI() {
   if (tier.needsPackage) {
     $("certificateFields").querySelector(".field span").textContent = state.packageMode === "buy"
       ? "Email for your package"
-      : "Email used for your package";
+      : "Package code";
     $("certificateFields").querySelector(".field-hint").textContent = state.packageMode === "buy"
-      ? "Use the same email at payment so your sessions open automatically after checkout."
-      : "We will look up your package automatically. No code is needed.";
+      ? "Use the email where you want your payment receipt sent."
+      : "Enter the code from your package receipt. No email is needed here.";
+    $("packageEmailInput").type = state.packageMode === "buy" ? "email" : "text";
+    $("packageEmailInput").placeholder = state.packageMode === "buy" ? "you@example.com" : "e.g. 3535CF7E";
   }
   const mappingReady = Boolean(state.appointmentTypeID);
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
@@ -515,9 +516,9 @@ async function continueFromChoice() {
   state.remaining = tier.sessions;
 
   if (tier.needsPackage) {
-    state.packageEmail = $("packageEmailInput").value.trim();
-    if (!state.packageEmail) {
-      $("step1Error").textContent = "Enter the email used for your package.";
+    state.packageCode = $("packageEmailInput").value.trim();
+    if (!state.packageCode) {
+      $("step1Error").textContent = "Enter the package code from your receipt email.";
       return;
     }
 
@@ -525,13 +526,11 @@ async function continueFromChoice() {
     $("continueChoiceBtn").textContent = "Checking package...";
     try {
       const resolved = await resolvePackageEntitlement({
-        email: state.packageEmail,
-        orderID: state.returnOrderID,
+        certificate: state.packageCode,
         productID: state.productID
       });
       state.certificate = resolved.certificate;
       state.remaining = resolved.remaining || selectedTier().sessions || 1;
-      $("email").value = state.packageEmail;
     } catch (error) {
       $("step1Error").textContent = error.message;
       $("continueChoiceBtn").disabled = false;
