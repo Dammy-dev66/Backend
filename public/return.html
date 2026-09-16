@@ -51,7 +51,10 @@
     const totalPrice = params.get("totalPrice") || "";
     const source = params.get("source") || "stripe";
     const isPackageTier = /^pack/i.test(tier);
-    const bookingStep = isPackageTier ? "2" : "1";
+    // The thank-you link may not contain the email/certificate needed to resume a package.
+    // In that case, open the package form first instead of showing an empty times screen.
+    const canResumePackage = isPackageTier && Boolean(email && (certificate || productID || appointmentTypeID));
+    const bookingStep = canResumePackage ? "2" : "1";
 
     const formatLabel = {
       oneToOne: "Tutor + one student",
@@ -62,7 +65,7 @@
       const target = new URL(bookingLink, location.origin);
       if (isPackageTier) {
         target.searchParams.set("source", "package");
-        target.searchParams.set("step", "2");
+        target.searchParams.set("step", bookingStep);
       }
       bookLink.href = target.toString();
     } else {
