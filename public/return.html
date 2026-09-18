@@ -85,11 +85,15 @@
       target.searchParams.set("step", bookingStep);
       bookLink.href = target.toString();
     }
+    function preventPendingPackageNavigation(event) {
+      event.preventDefault();
+    }
+
     if (isPackageTier && !canResumePackage) {
       bookLink.href = "#";
       bookLink.textContent = "Preparing package code...";
       bookLink.setAttribute("aria-disabled", "true");
-      bookLink.addEventListener("click", (event) => event.preventDefault());
+      bookLink.addEventListener("click", preventPendingPackageNavigation);
       error.textContent = "Creating your package code. This usually takes a few seconds.";
     } else {
       bookLink.textContent = isPackageTier ? "Go to sessions" : "Book again";
@@ -120,6 +124,7 @@
             bookLink.href = target.toString();
             bookLink.textContent = "Go to sessions";
             bookLink.removeAttribute("aria-disabled");
+            bookLink.removeEventListener("click", preventPendingPackageNavigation);
             error.textContent = "";
             renderSummary();
             return;
