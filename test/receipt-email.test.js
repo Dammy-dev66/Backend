@@ -46,6 +46,7 @@ test("receipt email content mentions the booking link", () => {
 
   assert.match(html, /Go to sessions/);
   assert.match(html, /step=2/);
+  assert.doesNotMatch(html, /Booking link:/);
   assert.match(buildReceiptSubject("AP Psychology"), /receipt for AP Psychology/i);
 });
 

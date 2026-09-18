@@ -52,8 +52,9 @@
     const source = params.get("source") || "stripe";
     const isPackageTier = /^pack/i.test(tier);
     let packageCode = certificate;
+    let packageCodeReady = Boolean(certificate);
     // The package code identifies the purchase; email is only contact data.
-    const canResumePackage = isPackageTier && Boolean(certificate);
+    const canResumePackage = isPackageTier && packageCodeReady;
     const bookingStep = canResumePackage ? "2" : "1";
 
     const formatLabel = {
@@ -84,12 +85,20 @@
       target.searchParams.set("step", bookingStep);
       bookLink.href = target.toString();
     }
-    bookLink.textContent = isPackageTier && !canResumePackage ? "Preparing sessions..." : (isPackageTier ? "Go to sessions" : "Book again");
+    if (isPackageTier && !canResumePackage) {
+      bookLink.href = "#";
+      bookLink.textContent = "Preparing package code...";
+      bookLink.setAttribute("aria-disabled", "true");
+      bookLink.addEventListener("click", (event) => event.preventDefault());
+      error.textContent = "Creating your package code. This usually takes a few seconds.";
+    } else {
+      bookLink.textContent = isPackageTier ? "Go to sessions" : "Book again";
+    }
 
     async function enrichThankYouSessionsLink() {
       if (!isPackageTier || certificate || !params.get("session_id")) return;
 
-      for (let attempt = 0; attempt < 15; attempt += 1) {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
         try {
           const response = await fetch(`/api/payment-complete?session_id=${encodeURIComponent(params.get("session_id"))}`);
           const context = await response.json().catch(() => ({}));
@@ -97,6 +106,7 @@
             const target = new URL(bookLink.href, location.origin);
             if (context.email) target.searchParams.set("email", context.email);
             packageCode = context.certificate;
+            packageCodeReady = true;
             target.searchParams.set("certificate", context.certificate);
             if (context.subject) target.searchParams.set("subject", context.subject);
             if (context.format) target.searchParams.set("format", context.format);
@@ -109,6 +119,8 @@
             target.searchParams.set("step", "2");
             bookLink.href = target.toString();
             bookLink.textContent = "Go to sessions";
+            bookLink.removeAttribute("aria-disabled");
+            error.textContent = "";
             renderSummary();
             return;
           }
@@ -116,11 +128,11 @@
           // Keep polling while the payment webhook finishes.
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      bookLink.textContent = "Use the code in your email";
-      error.textContent = "Your package code is still being prepared. Please refresh this page in a moment.";
+      error.textContent = "Your package code is taking longer than usual. Keep this page open and we will add it as soon as it is ready.";
+      setTimeout(enrichThankYouSessionsLink, 5000);
     }
 
     enrichThankYouSessionsLink();
