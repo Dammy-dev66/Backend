@@ -16,7 +16,7 @@
     <main class="panel">
       <p class="eyebrow">Payment complete</p>
       <h1 id="confirmTitle">Thanks - your payment was received.</h1>
-      <p class="lede" id="confirmLead">Your confirmation email is on the way. The button below takes you straight to the sessions page if you want to book or add more times later.</p>
+      <p class="lede" id="confirmLead">Your confirmation email is on the way.</p>
       <div class="summary" id="confirmSummary"></div>
       <p class="field-error" id="confirmError"></p>
       <a class="btn-link" id="bookLink" href="/">Go to sessions</a>
@@ -31,10 +31,9 @@
         return {};
       }
     })();
-    const title = document.getElementById("confirmTitle");
     const lead = document.getElementById("confirmLead");
     const summary = document.getElementById("confirmSummary");
-      const error = document.getElementById("confirmError");
+    const error = document.getElementById("confirmError");
     const bookLink = document.getElementById("bookLink");
 
     const subject = params.get("subject") || saved.subject || "your lesson";
@@ -45,17 +44,12 @@
     const backUrl = params.get("backUrl") || saved.backUrl || localStorage.getItem("finbarBackUrl") || "";
     const orderID = params.get("orderID") || saved.orderID || "";
     const productID = params.get("productID") || "";
-    const certificate = params.get("certificate") || saved.certificate || "";
     const bookingLink = params.get("bookingLink") || saved.bookingLink || "";
     const couponCode = params.get("couponCode") || "";
     const totalPrice = params.get("totalPrice") || "";
     const source = params.get("source") || "stripe";
     const isPackageTier = /^pack/i.test(tier);
-    let packageCode = certificate;
-    let packageCodeReady = Boolean(certificate);
-    // The package code identifies the purchase; email is only contact data.
-    const canResumePackage = isPackageTier && packageCodeReady;
-    const bookingStep = canResumePackage ? "2" : "1";
+    const bookingStep = "1";
 
     const formatLabel = {
       oneToOne: "Tutor + one student",
@@ -79,75 +73,23 @@
       if (backUrl) target.searchParams.set("backUrl", backUrl);
       if (orderID) target.searchParams.set("orderID", orderID);
       if (productID) target.searchParams.set("productID", productID);
-      if (certificate) target.searchParams.set("certificate", certificate);
       if (couponCode) target.searchParams.set("couponCode", couponCode);
       target.searchParams.set("source", isPackageTier ? "package" : source);
       target.searchParams.set("step", bookingStep);
       bookLink.href = target.toString();
     }
-    function preventPendingPackageNavigation(event) {
-      event.preventDefault();
-    }
-
-    if (isPackageTier && !canResumePackage) {
-      bookLink.href = "#";
-      bookLink.textContent = "Preparing package code...";
-      bookLink.setAttribute("aria-disabled", "true");
-      bookLink.addEventListener("click", preventPendingPackageNavigation);
-      error.textContent = "Creating your package code. This usually takes a few seconds.";
+    if (isPackageTier) {
+      lead.textContent = "Your confirmation email contains your package code and a Go to sessions button. Keep that email to book your package sessions.";
+      bookLink.hidden = true;
     } else {
-      bookLink.textContent = isPackageTier ? "Go to sessions" : "Book again";
+      bookLink.textContent = "Book again";
     }
-
-    async function enrichThankYouSessionsLink() {
-      if (!isPackageTier || certificate || !params.get("session_id")) return;
-
-      for (let attempt = 0; attempt < 60; attempt += 1) {
-        try {
-          const response = await fetch(`/api/payment-complete?session_id=${encodeURIComponent(params.get("session_id"))}`);
-          const context = await response.json().catch(() => ({}));
-          if (response.ok && context.ok && context.certificate) {
-            const target = new URL(bookLink.href, location.origin);
-            if (context.email) target.searchParams.set("email", context.email);
-            packageCode = context.certificate;
-            packageCodeReady = true;
-            target.searchParams.set("certificate", context.certificate);
-            if (context.subject) target.searchParams.set("subject", context.subject);
-            if (context.format) target.searchParams.set("format", context.format);
-            if (context.tier) target.searchParams.set("tier", context.tier);
-            if (context.appointmentTypeID) target.searchParams.set("appointmentTypeID", context.appointmentTypeID);
-            if (context.productID) target.searchParams.set("productID", context.productID);
-            if (context.backUrl) target.searchParams.set("backUrl", context.backUrl);
-            if (context.couponCode) target.searchParams.set("couponCode", context.couponCode);
-            target.searchParams.set("source", "package");
-            target.searchParams.set("step", "2");
-            bookLink.href = target.toString();
-            bookLink.textContent = "Go to sessions";
-            bookLink.removeAttribute("aria-disabled");
-            bookLink.removeEventListener("click", preventPendingPackageNavigation);
-            error.textContent = "";
-            renderSummary();
-            return;
-          }
-        } catch {
-          // Keep polling while the payment webhook finishes.
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-
-      error.textContent = "Your package code is taking longer than usual. Keep this page open and we will add it as soon as it is ready.";
-      setTimeout(enrichThankYouSessionsLink, 5000);
-    }
-
-    enrichThankYouSessionsLink();
 
     function renderSummary() {
       summary.innerHTML = `
       <strong>${subject}</strong><br>
       ${formatLabel || "Booking"}${tier ? ` - ${tier}` : ""}
       ${totalPrice ? `<br><span class="muted">Total: EUR ${Number(totalPrice).toFixed(2)}</span>` : ""}
-      ${packageCode ? `<br><strong>Package code:</strong> ${packageCode}` : ""}
     `;
     }
     renderSummary();
