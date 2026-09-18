@@ -350,14 +350,14 @@ function populateSelectors() {
     if (certificate) {
       state.packageMode = "redeem";
       setPackageMode("redeem");
-      state.remaining = selectedTier().sessions;
+      state.remaining = 0;
       $("email").value = state.packageEmail || email || "";
       $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
       $("timeEyebrow").textContent = "Redeem package";
       $("balancePill").classList.remove("hidden");
       updateSelectedUI();
       setStep(2);
-      loadMonth({ autoAdvance: true });
+      queueMicrotask(() => resumeReturnedPackage());
       return;
     }
     setPackageMode("redeem");
