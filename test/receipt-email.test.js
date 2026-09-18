@@ -96,6 +96,18 @@ test("two-student receipt payload includes both student names for Make", () => {
   assert.equal(payload.receipt.studentName2, "Ben Example");
 });
 
+test("receipt payload defaults Fin's copy address when production configuration is empty", () => {
+  const payload = buildReceiptPayload({
+    customerEmail: "student@example.com",
+    copyEmail: "",
+    subject: "AP Psychology",
+    format: "oneToTwo",
+    tier: "pack6"
+  });
+
+  assert.equal(payload.copyEmail, "hello@finbarb.com");
+});
+
 test("booking confirmation falls back to the Make webhook when the env var is missing", async () => {
   const originalWebhook = process.env.MAKE_RECEIPT_WEBHOOK_URL;
   delete process.env.MAKE_RECEIPT_WEBHOOK_URL;

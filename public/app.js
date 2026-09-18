@@ -686,6 +686,16 @@ function updateSelectedUI() {
 }
 
 function goToDetails() {
+  if (selectedTier().needsPackage && state.selected.length < state.remaining) {
+    const sessionsLeft = state.remaining - state.selected.length;
+    const shouldContinue = window.confirm(
+      `You selected ${state.selected.length} of ${state.remaining} available sessions. ` +
+      `${sessionsLeft} session(s) will remain in this package.\n\n` +
+      "Select OK to continue and book the remaining sessions later, or Cancel to choose more sessions now."
+    );
+    if (!shouldContinue) return;
+  }
+
   const isTwoStudentFormat = state.formatKey === "oneToTwo";
   $("studentTwoGroup").classList.toggle("hidden", !isTwoStudentFormat);
   $("detailsLead").textContent = selectedTier().needsPackage
