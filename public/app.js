@@ -54,6 +54,8 @@ const state = {
   backUrl: "",
   returnSource: "",
   returnOrderID: "",
+  profileToken: "",
+  savedDetails: null,
   remaining: 1,
   selected: [],
   scheduleData: [],
@@ -232,6 +234,34 @@ async function resolvePackageEntitlement({ email, certificate, orderID, productI
   };
 }
 
+function applySavedDetails(profile) {
+  if (!profile) return;
+  state.savedDetails = profile;
+  ["firstName", "lastName", "email", "phone", "studentName", "studentName2", "notes"].forEach((field) => {
+    if (profile[field] && !$(field).value) {
+      $(field).value = profile[field];
+    }
+  });
+}
+
+async function loadSavedDetails() {
+  if (!state.profileToken || !state.returnOrderID || !state.certificate || !state.packageEmail) return;
+
+  const { ok, data } = await api("/api/package-profile", {
+    method: "POST",
+    body: JSON.stringify({
+      orderID: state.returnOrderID,
+      certificate: state.certificate,
+      email: state.packageEmail,
+      token: state.profileToken
+    })
+  });
+
+  if (ok && data.ok && data.profile) {
+    applySavedDetails(data.profile);
+  }
+}
+
 function setStep(n) {
   document.querySelectorAll(".step").forEach((el) => el.classList.add("hidden"));
   $(`step${n}`).classList.remove("hidden");
@@ -284,11 +314,13 @@ function populateSelectors() {
   const appointmentCreated = params.get("appointmentCreated") === "1";
   const certificateCreated = params.get("certificateCreated") === "1";
   const certificate = params.get("certificate") || saved.certificate || "";
+  const profileToken = params.get("profile") || "";
   const directToSessions = params.get("step") === "2";
   const backUrl = params.get("backUrl") || saved.backUrl || storedBackUrl() || "";
 
   state.returnSource = source;
   state.returnOrderID = orderID;
+  state.profileToken = profileToken;
   state.productID = productID || state.productID;
   state.backUrl = backUrl;
   if (backUrl) {
@@ -358,6 +390,7 @@ function populateSelectors() {
       updateSelectedUI();
       setStep(2);
       queueMicrotask(() => resumeReturnedPackage());
+      queueMicrotask(() => loadSavedDetails());
       return;
     }
     setPackageMode("redeem");
@@ -699,7 +732,9 @@ function goToDetails() {
   const isTwoStudentFormat = state.formatKey === "oneToTwo";
   $("studentTwoGroup").classList.toggle("hidden", !isTwoStudentFormat);
   $("detailsLead").textContent = selectedTier().needsPackage
-    ? `These details apply to the ${state.selected.length} package session(s) selected.`
+    ? state.savedDetails
+      ? "Your saved booking details are ready below. Review or update them before confirming these sessions."
+      : `These details apply to the ${state.selected.length} package session(s) selected.`
     : isTwoStudentFormat
       ? "Please add both student names so the booking details stay complete."
       : "These details will carry into checkout so the handoff stays quick.";

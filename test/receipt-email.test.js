@@ -10,6 +10,8 @@ const {
 } = require("../lib/receipt-email");
 
 test("receipt email link returns the student to step 2 with package context", () => {
+  const originalSecret = process.env.PACKAGE_PROFILE_SIGNING_SECRET;
+  process.env.PACKAGE_PROFILE_SIGNING_SECRET = "test-profile-secret";
   const bookingLink = buildSessionsLink({
     subject: "AP Psychology",
     format: "oneToOne",
@@ -26,11 +28,17 @@ test("receipt email link returns the student to step 2 with package context", ()
 
   const url = new URL(bookingLink);
 
-  assert.equal(url.pathname, "/");
-  assert.equal(url.searchParams.get("step"), "2");
-  assert.equal(url.searchParams.get("certificate"), "CERT-123");
-  assert.equal(url.searchParams.get("subject"), "AP Psychology");
-  assert.equal(url.searchParams.get("source"), "receipt");
+  try {
+    assert.equal(url.pathname, "/");
+    assert.equal(url.searchParams.get("step"), "2");
+    assert.equal(url.searchParams.get("certificate"), "CERT-123");
+    assert.equal(url.searchParams.get("subject"), "AP Psychology");
+    assert.equal(url.searchParams.get("source"), "receipt");
+    assert.ok(url.searchParams.get("profile"));
+  } finally {
+    if (originalSecret === undefined) delete process.env.PACKAGE_PROFILE_SIGNING_SECRET;
+    else process.env.PACKAGE_PROFILE_SIGNING_SECRET = originalSecret;
+  }
 });
 
 test("receipt email content mentions the booking link", () => {
