@@ -78,6 +78,8 @@ test("receipt payload keeps the customer and copy recipient together", () => {
 
   assert.equal(payload.customerEmail, "student@example.com");
   assert.equal(payload.copyEmail, "fin@example.com");
+  assert.equal(payload.senderName, "Finbar B. Elite Tutoring");
+  assert.equal(payload.replyTo, "hello@finbarb.com");
   assert.equal(payload.receipt.certificate, "CERT-123");
   assert.match(payload.html, /Go to sessions/);
   assert.match(payload.html, /Package code/);
@@ -103,6 +105,10 @@ test("two-student receipt payload includes both student names for Make", () => {
   assert.equal(payload.studentName2, "Ben Example");
   assert.equal(payload.receipt.studentName, "Alice Example");
   assert.equal(payload.receipt.studentName2, "Ben Example");
+  assert.match(payload.finHtml, /Alice Example/);
+  assert.match(payload.finHtml, /Ben Example/);
+  assert.doesNotMatch(payload.html, /Alice Example/);
+  assert.doesNotMatch(payload.html, /Ben Example/);
 });
 
 test("receipt payload defaults Fin's copy address when production configuration is empty", () => {
