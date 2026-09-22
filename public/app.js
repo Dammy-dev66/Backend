@@ -214,7 +214,8 @@ async function resolvePackageEntitlement({ email, certificate, orderID, productI
       certificate,
       appointmentTypeID: state.appointmentTypeID,
       orderID,
-      productID
+      productID,
+      profileToken: state.profileToken
     })
   });
 
@@ -230,7 +231,8 @@ async function resolvePackageEntitlement({ email, certificate, orderID, productI
 
   return {
     certificate: data.certificate?.code || data.certificate?.certificate || data.certificate?.packageCode || data.certificate,
-    remaining
+    remaining,
+    profile: data.profile || null
   };
 }
 
@@ -242,24 +244,6 @@ function applySavedDetails(profile) {
       $(field).value = profile[field];
     }
   });
-}
-
-async function loadSavedDetails() {
-  if (!state.profileToken || !state.returnOrderID || !state.certificate || !state.packageEmail) return;
-
-  const { ok, data } = await api("/api/package-profile", {
-    method: "POST",
-    body: JSON.stringify({
-      orderID: state.returnOrderID,
-      certificate: state.certificate,
-      email: state.packageEmail,
-      token: state.profileToken
-    })
-  });
-
-  if (ok && data.ok && data.profile) {
-    applySavedDetails(data.profile);
-  }
 }
 
 function setStep(n) {
@@ -390,7 +374,6 @@ function populateSelectors() {
       updateSelectedUI();
       setStep(2);
       queueMicrotask(() => resumeReturnedPackage());
-      queueMicrotask(() => loadSavedDetails());
       return;
     }
     setPackageMode("redeem");
@@ -486,7 +469,7 @@ async function resumeReturnedPackage() {
 
   try {
     const resolved = await resolvePackageEntitlement({
-      email: certificate ? undefined : email,
+      email,
       certificate: certificate || undefined,
       orderID: certificate ? undefined : orderID,
       productID: state.productID
@@ -497,6 +480,7 @@ async function resumeReturnedPackage() {
     state.certificate = resolved.certificate;
     state.packageCode = resolved.certificate;
     state.remaining = resolved.remaining || selectedTier().sessions || 1;
+    applySavedDetails(resolved.profile);
     $("email").value = email;
     $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
     $("timeEyebrow").textContent = "Redeem package";

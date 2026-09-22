@@ -1,5 +1,33 @@
 const { checkCertificate, resolvePackageCertificate } = require("../lib/acuity");
 const { handleOptions, readJson, sendJson } = require("../lib/http");
+const { getStripeClient } = require("../lib/stripe");
+const { isValidProfileToken } = require("../lib/package-profile");
+
+function cleanString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function resolveSavedProfile({ orderID, certificate, email, token }) {
+  if (!orderID || !certificate || !email || !token) return null;
+  if (!isValidProfileToken({ orderID, certificate, email, token })) return null;
+
+  const session = await getStripeClient().checkout.sessions.retrieve(orderID);
+  const metadata = session.metadata || {};
+  const paid = session.payment_status === "paid" || session.status === "complete";
+  if (!paid || cleanString(metadata.certificate) !== certificate || cleanString(metadata.email).toLowerCase() !== email.toLowerCase()) {
+    return null;
+  }
+
+  return {
+    firstName: cleanString(metadata.firstName),
+    lastName: cleanString(metadata.lastName),
+    email,
+    phone: cleanString(metadata.phone),
+    studentName: cleanString(metadata.studentName),
+    studentName2: cleanString(metadata.studentName2),
+    notes: cleanString(metadata.notes)
+  };
+}
 
 function requireString(body, field) {
   if (typeof body[field] !== "string" || !body[field].trim()) {
@@ -40,13 +68,21 @@ module.exports = async function handler(req, res) {
           productID: typeof body.productID === "string" ? body.productID.trim() : undefined
         });
 
+    const profile = await resolveSavedProfile({
+      orderID: cleanString(body.orderID),
+      certificate: resolved.certificate,
+      email,
+      token: cleanString(body.profileToken)
+    });
+
     return sendJson(req, res, 200, {
       ok: true,
       packageValid: true,
       certificate: {
         ...resolved.certificateStatus,
         code: resolved.certificate
-      }
+      },
+      ...(profile ? { profile } : {})
     });
   } catch (error) {
     return sendJson(req, res, error.statusCode || 500, {
