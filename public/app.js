@@ -708,7 +708,7 @@ function goToDetails() {
     const shouldContinue = window.confirm(
       `You selected ${state.selected.length} of ${state.remaining} available sessions. ` +
       `${sessionsLeft} session(s) will remain in this package.\n\n` +
-      "Select OK to continue and book the remaining sessions later, or Cancel to choose more sessions now."
+      "Select OK to confirm these sessions now and book the rest later, or Cancel to choose more times."
     );
     if (!shouldContinue) return;
   }
@@ -829,7 +829,8 @@ async function finishBooking() {
     details.studentName2 ? `Student 2: ${details.studentName2}` : ""
   ].filter(Boolean).join("\n");
 
-  for (const slot of state.selected) {
+  for (let index = 0; index < state.selected.length; index += 1) {
+    const slot = state.selected[index];
     const { ok, data } = await api("/api/book-with-package", {
       method: "POST",
       body: JSON.stringify({
@@ -845,7 +846,15 @@ async function finishBooking() {
         productID: state.productID || undefined,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         notes: packageNotes,
-        fields: details.studentName ? [{ id: STUDENT_NAME_FIELD_ID, value: details.studentName }] : []
+        fields: details.studentName ? [{ id: STUDENT_NAME_FIELD_ID, value: details.studentName }] : [],
+        notifyCustomer: index === state.selected.length - 1,
+        subject: selectedSubject().name,
+        format: state.formatKey,
+        tier: state.tierKey,
+        totalPrice: selectedFormat().price[selectedTier().key],
+        backUrl: state.backUrl,
+        studentName: details.studentName,
+        studentName2: details.studentName2
       })
     });
 

@@ -5,6 +5,7 @@ const { Readable } = require("node:stream");
 const packageJson = require("../package.json");
 const handlerPath = require.resolve("../api/book-with-package");
 const acuityPath = require.resolve("../lib/acuity");
+const receiptPath = require.resolve("../lib/receipt-email");
 
 function makeResponse() {
   return {
@@ -23,6 +24,7 @@ function makeResponse() {
 
 function loadHandlerWithStub(stub) {
   delete require.cache[acuityPath];
+  delete require.cache[receiptPath];
   delete require.cache[handlerPath];
   require.cache[acuityPath] = { exports: stub };
   return require("../api/book-with-package");
@@ -71,4 +73,46 @@ test("book-with-package advertises full price fallback when enabled and a packag
   assert.equal(body.canFallbackToFullPrice, true);
 
   process.env.ALLOW_FULL_PRICE_FALLBACK = original;
+});
+
+test("the final package session booking sends one remaining-balance email", async () => {
+  const calls = [];
+  delete require.cache[acuityPath];
+  delete require.cache[receiptPath];
+  delete require.cache[handlerPath];
+  require.cache[acuityPath] = { exports: {
+    checkCertificate: async () => ({ remaining: 3 }),
+    createAppointment: async () => ({ id: 42 })
+  }};
+  require.cache[receiptPath] = { exports: {
+    sendBookingConfirmationEmails: async (input) => {
+      calls.push(input);
+      return { sent: true };
+    }
+  }};
+  const handler = require("../api/book-with-package");
+  const req = Readable.from([Buffer.from(JSON.stringify({
+    datetime: "2026-09-01T14:00:00+01:00",
+    appointmentTypeID: 95402039,
+    firstName: "Jane",
+    lastName: "Parent",
+    email: "parent@example.com",
+    certificate: "3535CF7E",
+    subject: "AP Psychology",
+    format: "oneToOne",
+    tier: "pack6",
+    notifyCustomer: true,
+    totalPrice: "264"
+  }))]);
+  req.method = "POST";
+  req.headers = { origin: "https://finbrady.carrd.co" };
+  const res = makeResponse();
+  await handler(req, res);
+
+  const body = JSON.parse(res.body);
+  assert.equal(res.statusCode, 201);
+  assert.equal(body.remaining, 3);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].intro, /3 sessions remaining/i);
+  assert.equal(calls[0].ctaLabel, "Book remaining sessions");
 });

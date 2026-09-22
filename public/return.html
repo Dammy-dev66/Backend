@@ -15,7 +15,7 @@
     </header>
     <main class="panel">
       <p class="eyebrow">Payment complete</p>
-      <h1 id="confirmTitle">Thanks - your payment was received.</h1>
+      <h1 id="confirmTitle">Your payment was received.</h1>
       <p class="lede" id="confirmLead">Your confirmation email is on the way.</p>
       <div class="summary" id="confirmSummary"></div>
       <p class="field-error" id="confirmError"></p>
@@ -79,7 +79,7 @@
       bookLink.href = target.toString();
     }
     if (isPackageTier) {
-      lead.textContent = "Your confirmation email contains your package code and a Go to sessions button. Keep that email to book your package sessions.";
+      lead.textContent = "Your package receipt has been sent to your email address. It contains your package code and a button to book your package sessions.";
       bookLink.hidden = true;
     } else {
       bookLink.textContent = "Book again";
