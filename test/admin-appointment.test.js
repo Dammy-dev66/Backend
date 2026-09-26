@@ -44,7 +44,8 @@ function loadHandler({ rescheduleError } = {}) {
     recordReceipt: (state, item) => state.receipts.push(item)
   } };
   require.cache[paths.receipt] = { exports: { sendNotificationEmails: async (payload) => { calls.email.push(payload); return { sent: true }; } } };
-  return { handler: require("../lib/admin-dashboard-api").handleAppointment, calls };
+  const dashboardApi = require("../lib/admin-dashboard-api");
+  return { handler: (req, res) => dashboardApi.handleDashboardResource(req, res, "appointment"), calls };
 }
 
 test("dashboard reschedule uses Acuity and sends the branded reschedule email", async () => {
