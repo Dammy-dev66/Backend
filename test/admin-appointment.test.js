@@ -45,7 +45,7 @@ function loadHandler({ rescheduleError } = {}) {
   } };
   require.cache[paths.receipt] = { exports: { sendNotificationEmails: async (payload) => { calls.email.push(payload); return { sent: true }; } } };
   const dashboardApi = require("../lib/admin-dashboard-api");
-  return { handler: (req, res) => dashboardApi.handleDashboardResource(req, res, "appointment"), calls };
+  return { handler: (req, res) => dashboardApi.handleDashboardResource(req, res, "appointment"), calls, ledger };
 }
 
 test("dashboard reschedule uses Acuity and sends the branded reschedule email", async () => {
@@ -81,13 +81,15 @@ test("dashboard does not email a client when Acuity rejects a stale reschedule s
   process.env.FINBAR_ADMIN_KEY = "fin-key";
   const staleSlot = new Error("That time is no longer available.");
   staleSlot.statusCode = 409;
-  const { handler, calls } = loadHandler({ rescheduleError: staleSlot });
+  const { handler, calls, ledger } = loadHandler({ rescheduleError: staleSlot });
   const res = response();
   await handler(request({ action: "reschedule", appointmentId: "APT-1", datetime: "2026-10-04T10:00:00+01:00" }), res);
   const body = JSON.parse(res.body);
   assert.equal(res.statusCode, 409);
   assert.equal(body.error, "That time is no longer available.");
   assert.equal(calls.email.length, 0);
+  assert.equal(ledger.actions[0].result, "failed");
+  assert.equal(ledger.actions[0].emailSent, false);
   if (previous === undefined) delete process.env.FINBAR_ADMIN_KEY; else process.env.FINBAR_ADMIN_KEY = previous;
 });
 

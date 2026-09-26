@@ -47,6 +47,9 @@ test("ledger records package purchases, booking use, receipt sends, and dashboar
   assert.equal(ledger.appointments[0].id, "APT-1");
   assert.equal(ledger.receipts[0].sent, true);
   assert.equal(ledger.actions[0].type, "reschedule");
+  assert.equal(ledger.actions[0].actor, "Fin");
+  assert.equal(ledger.actions[0].result, "completed");
+  assert.equal(ledger.backfillVersion, 0);
 });
 
 test("all dashboard email templates are delivered through the existing Make payload", async () => {
