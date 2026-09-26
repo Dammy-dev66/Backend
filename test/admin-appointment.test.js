@@ -13,7 +13,7 @@ function request(body) {
   return req;
 }
 
-function loadHandler() {
+function loadHandler({ rescheduleError } = {}) {
   const paths = {
     acuity: require.resolve("../lib/acuity"),
     config: require.resolve("../lib/booking-config"),
@@ -27,7 +27,11 @@ function loadHandler() {
   require.cache[paths.acuity] = { exports: {
     getAppointment: async () => ({ id: "APT-1", email: "parent@example.com", firstName: "Jordan", lastName: "Parent", datetime: "2026-10-03T10:00:00+01:00", appointmentTypeID: "42", calendarID: "7", type: "English Literature" }),
     listAvailabilityTimes: async () => [{ time: "2026-10-04T10:00:00+01:00" }],
-    rescheduleAppointment: async (id, payload) => { calls.reschedule.push({ id, payload }); return { id, email: "parent@example.com", firstName: "Jordan", lastName: "Parent", datetime: payload.datetime, appointmentTypeID: "42", calendarID: "7", type: "English Literature" }; },
+    rescheduleAppointment: async (id, payload) => {
+      calls.reschedule.push({ id, payload });
+      if (rescheduleError) throw rescheduleError;
+      return { id, email: "parent@example.com", firstName: "Jordan", lastName: "Parent", datetime: payload.datetime, appointmentTypeID: "42", calendarID: "7", type: "English Literature" };
+    },
     cancelAppointment: async (id, payload) => { calls.cancel.push({ id, payload }); return { id, email: "parent@example.com", firstName: "Jordan", lastName: "Parent", datetime: "2026-10-03T10:00:00+01:00", appointmentTypeID: "42", calendarID: "7", canceled: true }; }
   } };
   require.cache[paths.config] = { exports: { readBookingConfig: async () => ({ services: [{ appointmentTypeID: "42", subjectName: "English Literature", format: "oneToOne", tier: "single" }] }) } };
@@ -68,6 +72,21 @@ test("dashboard availability keeps the current appointment out of the slot confl
   const body = JSON.parse(res.body);
   assert.equal(res.statusCode, 200);
   assert.equal(body.times.length, 1);
+  if (previous === undefined) delete process.env.FINBAR_ADMIN_KEY; else process.env.FINBAR_ADMIN_KEY = previous;
+});
+
+test("dashboard does not email a client when Acuity rejects a stale reschedule slot", async () => {
+  const previous = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "fin-key";
+  const staleSlot = new Error("That time is no longer available.");
+  staleSlot.statusCode = 409;
+  const { handler, calls } = loadHandler({ rescheduleError: staleSlot });
+  const res = response();
+  await handler(request({ action: "reschedule", appointmentId: "APT-1", datetime: "2026-10-04T10:00:00+01:00" }), res);
+  const body = JSON.parse(res.body);
+  assert.equal(res.statusCode, 409);
+  assert.equal(body.error, "That time is no longer available.");
+  assert.equal(calls.email.length, 0);
   if (previous === undefined) delete process.env.FINBAR_ADMIN_KEY; else process.env.FINBAR_ADMIN_KEY = previous;
 });
 
