@@ -129,6 +129,18 @@ The protected dashboard now includes an Operations view for upcoming and recent 
 
 Fin can edit the wording for package receipts, booking confirmations, reschedules, and cancellations in the dashboard. The email layout and Make handoff remain protected so no HTML or Make editing is needed.
 
+### Dashboard live-validation checklist
+
+Use a clearly labelled test customer and a Stripe test-mode checkout. Do not use a real client appointment for this check.
+
+1. Buy a test package and confirm the Operations view shows the client, package code, receipt history, and live remaining balance.
+2. Redeem one package session and confirm the balance reduces without asking for the package code again.
+3. Open that booking, choose a genuine Acuity slot, and reschedule it. Confirm only the Fin-branded Make email arrives.
+4. Cancel the same test booking with an optional note. Confirm it remains canceled, with no refund and no package credit restored.
+5. Use **Resend email** and confirm the booking template arrives once more.
+
+The Operations drawer records the actor, time, result, email attempt, and optional note for every dashboard action.
+
 ### 9. 1:2 booking support
 
 The custom flow was expanded for 1:2 lessons.
@@ -251,11 +263,8 @@ Before we can call this fully done, the remaining work is:
 - `api/webhooks/stripe.js` handles Stripe completion events and triggers fulfillment.
 - `api/payment-complete.js` supports the local/mock payment path for older tests.
 - `api/booking-config.js` serves the shared booking config and accepts dashboard saves.
-- `api/admin/coupons.js` manages coupon rules.
-- `api/admin/operations.js` lists the operational booking view and backfills recent records.
-- `api/admin/client.js` returns a client record, package balances, and links legacy package codes.
-- `api/admin/appointment.js` loads availability and performs protected reschedule, cancel, and resend actions.
-- `api/admin/email-templates.js` manages the customer-facing email wording.
+- `api/admin/coupons.js` is the protected Fin-only admin endpoint. It manages coupon rules and routes Operations, client, appointment, and email-template resources through `?resource=operations`, `client`, `appointment`, or `templates` so the project remains within Vercel Hobby's function limit.
+- `lib/admin-dashboard-api.js` implements the Operations, client, appointment, template, ledger-backfill, and audit behavior used by that protected endpoint.
 - `api/resolve-package.js` finds package certificates.
 - `api/book-with-package.js` validates package redemption and books the appointment.
 - `api/availability.js` proxies Acuity availability dates and times.
@@ -287,7 +296,7 @@ Notes:
 - `STRIPE_WEBHOOK_SECRET` is required if the Stripe webhook should verify signed payloads.
 - `MAKE_RECEIPT_WEBHOOK_URL` tells the backend where to send the email payload after payment.
 - `FINBAR_RECEIPT_COPY_TO` sends Fin a copy of the same receipt/confirmation email.
-- `BLOB_READ_WRITE_TOKEN` is used so the coupon admin panel can persist changes in Vercel Blob.
+- `BLOB_READ_WRITE_TOKEN` stores protected coupon, operations-ledger, and email-template records in Vercel Blob.
 
 ## Local Development
 
@@ -314,6 +323,7 @@ The test suite covers:
 - Stripe webhook handling
 - the package redemption path
 - the direct booking path
+- protected dashboard actions, Make payloads, audit logging, and Stripe backfill checkpoints
 
 We also used Vercel deployment logs to confirm the function-count failure and then verify the redeploy after fixing it.
 
