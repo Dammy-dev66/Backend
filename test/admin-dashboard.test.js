@@ -50,6 +50,7 @@ test("ledger records package purchases, booking use, receipt sends, and dashboar
   assert.equal(ledger.actions[0].actor, "Fin");
   assert.equal(ledger.actions[0].result, "completed");
   assert.equal(ledger.backfillVersion, 0);
+  assert.equal(ledger.stripeBackfillCursor, "");
 });
 
 test("all dashboard email templates are delivered through the existing Make payload", async () => {

@@ -455,6 +455,9 @@
     state.operations = data.appointments || [];
     state.operationsSummary = data.summary || {};
     renderOperations();
+    if (data.backfillPending) {
+      window.setTimeout(() => loadOperations().catch((error) => showError(error.message)), 500);
+    }
   }
 
   function selectedClientAppointment(client) {
