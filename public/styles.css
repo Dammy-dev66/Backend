@@ -1380,6 +1380,17 @@ h1 {
   padding: 10px 11px;
 }
 
+.section-filter {
+  min-width: 170px;
+  height: 40px;
+  border: 1px solid #cbc7be;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font: 13px var(--body);
+  padding: 0 10px;
+}
+
 .field textarea {
   resize: vertical;
   line-height: 1.5;
@@ -1993,7 +2004,8 @@ h1 {
   .dashboard-content { padding: 25px 20px 40px; }
   .section-banner { display: grid; align-items: start; }
   .section-actions { justify-content: flex-start; }
-  .section-search { width: 100%; min-width: 0; }
+  .section-search,
+  .section-filter { width: 100%; min-width: 0; }
   .operations-layout,
   .template-layout,
   .pricing-layout,
@@ -2008,4 +2020,46 @@ h1 {
   .operation-row em { grid-column: 2; grid-row: 1 / span 2; }
   .record-editor,
   .pricing-reference { padding: 16px; }
+}
+
+@media (min-width: 901px) {
+  .admin-workspace,
+  .admin-panel { height: 100vh; }
+
+  .admin-workspace,
+  .admin-panel { overflow: hidden; }
+
+  .dashboard-sidebar { height: 100vh; overflow-y: auto; }
+
+  .dashboard-content {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+
+  .admin-tab-panel[data-panel="operations"] .operations-list-wrap,
+  .admin-tab-panel[data-panel="operations"] .client-drawer,
+  .admin-tab-panel[data-panel="subjects"] .record-list-wrap,
+  .admin-tab-panel[data-panel="subjects"] .record-editor,
+  .admin-tab-panel[data-panel="services"] .record-list-wrap,
+  .admin-tab-panel[data-panel="services"] .record-editor,
+  .admin-tab-panel[data-panel="coupons"] .record-list-wrap,
+  .admin-tab-panel[data-panel="coupons"] .record-editor,
+  .admin-tab-panel[data-panel="templates"] .template-list,
+  .admin-tab-panel[data-panel="templates"] .record-editor,
+  .admin-tab-panel[data-panel="proofreading-templates"] .template-list,
+  .admin-tab-panel[data-panel="proofreading-templates"] .record-editor {
+    max-height: min(720px, calc(100vh - 286px));
+    overflow-y: auto;
+  }
+
+  .admin-tab-panel[data-panel="operations"] .operations-list-wrap,
+  .admin-tab-panel[data-panel="subjects"] .record-list-wrap,
+  .admin-tab-panel[data-panel="services"] .record-list-wrap,
+  .admin-tab-panel[data-panel="coupons"] .record-list-wrap,
+  .admin-tab-panel[data-panel="templates"] .template-list,
+  .admin-tab-panel[data-panel="proofreading-templates"] .template-list {
+    scrollbar-color: #9da8b4 #f4f3ee;
+    scrollbar-width: thin;
+  }
 }

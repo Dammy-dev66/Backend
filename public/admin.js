@@ -27,6 +27,7 @@
   const deleteCouponBtn = document.getElementById("deleteCouponBtn");
   const subjectSearchInput = document.getElementById("subjectSearchInput");
   const serviceSearchInput = document.getElementById("serviceSearchInput");
+  const serviceSubjectFilter = document.getElementById("serviceSubjectFilter");
   const couponSearchInput = document.getElementById("couponSearchInput");
   const subjectStatus = document.getElementById("subjectStatus");
   const serviceStatus = document.getElementById("serviceStatus");
@@ -111,6 +112,7 @@
     search: {
       subjects: "",
       services: "",
+      serviceSubjectId: "",
       coupons: ""
     }
   };
@@ -334,6 +336,7 @@
 
   function renderServiceList() {
     const query = state.search.services.toLowerCase();
+    const subjectFilter = state.search.serviceSubjectId;
     const items = state.services
       .slice()
       .sort((a, b) => {
@@ -345,6 +348,7 @@
           || a.tier.localeCompare(b.tier);
       })
       .filter((service) => {
+        if (subjectFilter && service.subjectId !== subjectFilter) return false;
         if (!query) return true;
         const subject = state.subjects.find((item) => item.id === service.subjectId);
         return [subject?.name, service.label, service.appointmentTypeID, service.productID, service.bookingLink, service.note]
@@ -421,6 +425,18 @@
     } else if (state.subjects[0]) {
       serviceSubjectInput.value = state.subjects[0].id;
     }
+  }
+
+  function renderServiceSubjectFilter() {
+    const selected = state.search.serviceSubjectId;
+    const options = state.subjects
+      .slice()
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name))
+      .map((subject) => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subjectDisplay(subject))}</option>`)
+      .join("");
+    serviceSubjectFilter.innerHTML = `<option value="">All subjects</option>${options}`;
+    state.search.serviceSubjectId = state.subjects.some((subject) => subject.id === selected) ? selected : "";
+    serviceSubjectFilter.value = state.search.serviceSubjectId;
   }
 
   function selectedPackageKeys() {
@@ -767,6 +783,7 @@
 
     renderPackageList();
     renderServiceSubjectOptions();
+    renderServiceSubjectFilter();
     fillSubjectEditor(currentSubject() || state.subjects[0] || {});
     fillServiceEditor(currentService() || state.services[0] || {});
     fillCouponEditor(currentCoupon() || state.coupons[0] || {});
@@ -799,6 +816,7 @@
     });
     ensureSelectedAfterAdd(state.subjects, subject, "selectedSubjectId");
     renderServiceSubjectOptions();
+    renderServiceSubjectFilter();
     fillSubjectEditor(subject);
     renderSubjectList();
   });
@@ -844,6 +862,7 @@
     state.selectedSubjectId = state.subjects[0]?.id || "";
     state.selectedServiceId = state.services[0]?.id || "";
     renderServiceSubjectOptions();
+    renderServiceSubjectFilter();
     renderSubjectList();
     renderServiceList();
     fillSubjectEditor(currentSubject() || {});
@@ -917,6 +936,7 @@
 
       renderPackageList();
       renderServiceSubjectOptions();
+      renderServiceSubjectFilter();
       renderSubjectList();
       renderServiceList();
       renderCoupons();
@@ -936,6 +956,11 @@
 
   serviceSearchInput.addEventListener("input", () => {
     state.search.services = serviceSearchInput.value.trim();
+    renderServiceList();
+  });
+
+  serviceSubjectFilter.addEventListener("change", () => {
+    state.search.serviceSubjectId = serviceSubjectFilter.value;
     renderServiceList();
   });
 
