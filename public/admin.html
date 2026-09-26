@@ -42,6 +42,7 @@
 
       <nav class="admin-tabs" aria-label="Dashboard sections">
         <button class="admin-tab active" data-tab="operations" type="button">Operations</button>
+        <button class="admin-tab" data-tab="pricing" type="button">Pricing</button>
         <button class="admin-tab" data-tab="templates" type="button">Email templates</button>
         <button class="admin-tab" data-tab="proofreading-templates" type="button">Proofreading emails</button>
         <button class="admin-tab" data-tab="subjects" type="button">Subjects</button>
@@ -62,6 +63,18 @@
         <div class="operations-layout">
           <div class="operations-list-wrap"><div class="operations-list" id="operationsList"></div></div>
           <aside class="client-drawer" id="clientDrawer" aria-live="polite"><div class="drawer-empty">Select a booking to view the client, package balance, receipt history, and actions.</div></aside>
+        </div>
+      </section>
+
+      <section class="admin-tab-panel hidden" data-panel="pricing">
+        <div class="section-banner"><div><h2>Pricing</h2><p>These are the live customer prices used on the booking page and at Stripe checkout.</p></div><div class="section-actions"><button class="btn-secondary" id="refreshPricingBtn" type="button">Refresh prices</button><button class="btn-primary" id="savePricingBtn" type="button">Save prices</button></div></div>
+        <div class="pricing-layout">
+          <div class="record-editor">
+            <div class="record-editor-head"><strong>Website and Stripe prices</strong><span class="status-pill">EUR</span></div>
+            <p class="editor-note">Enter the amount a customer should pay for each lesson format and package. Coupon discounts are applied after these prices.</p>
+            <div class="price-editor-grid" id="priceEditorGrid"></div>
+          </div>
+          <aside class="pricing-reference" id="pricingReference"></aside>
         </div>
       </section>
 

@@ -6,6 +6,7 @@
   const APPOINTMENT_API = "/api/admin/coupons?resource=appointment";
   const TEMPLATE_API = "/api/admin/coupons?resource=templates";
   const PROOF_TEMPLATE_API = "/api/admin/coupons?resource=proofreading-templates";
+  const PRICING_API = "/api/admin/coupons?resource=pricing";
 
   const adminKeyInput = document.getElementById("adminKeyField");
   const tabButtons = Array.from(document.querySelectorAll(".admin-tab"));
@@ -56,6 +57,10 @@
   const saveProofTemplateBtn = document.getElementById("saveProofTemplateBtn");
   const resetProofTemplateBtn = document.getElementById("resetProofTemplateBtn");
   const proofEmailPreview = document.getElementById("proofEmailPreview");
+  const priceEditorGrid = document.getElementById("priceEditorGrid");
+  const pricingReference = document.getElementById("pricingReference");
+  const refreshPricingBtn = document.getElementById("refreshPricingBtn");
+  const savePricingBtn = document.getElementById("savePricingBtn");
 
   const subjectNameInput = document.getElementById("subjectNameInput");
   const subjectSlugInput = document.getElementById("subjectSlugInput");
@@ -99,6 +104,8 @@
     proofreadingTemplates: {},
     proofreadingDefaults: {},
     selectedProofreadingTemplateKind: "reviewDocument",
+    pricing: { currency: "EUR", prices: {} },
+    pricingServices: [],
     search: {
       subjects: "",
       services: "",
@@ -147,6 +154,7 @@
     tabButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
     tabPanels.forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== tab));
     if (getAdminKey() && tab === "operations") loadOperations().catch((error) => showError(error.message));
+    if (getAdminKey() && tab === "pricing") loadPricing().catch((error) => showError(error.message));
     if (getAdminKey() && tab === "templates") loadTemplates().catch((error) => showError(error.message));
     if (getAdminKey() && tab === "proofreading-templates") loadProofreadingTemplates().catch((error) => showError(error.message));
   }
@@ -158,6 +166,28 @@
         <span>${item.label}</span>
       </label>
     `).join("");
+  }
+
+  function priceLabel(format, tier) {
+    const formatLabel = format === "oneToTwo" ? "Tutor + two students" : "Tutor + one student";
+    const tierLabel = { trial: "Trial class", single: "Single lesson", pack6: "6-class package", pack12: "12-class package" }[tier] || tier;
+    return `${formatLabel} - ${tierLabel}`;
+  }
+
+  function renderPricing() {
+    const prices = state.pricing.prices || {};
+    const keys = ["oneToOne", "oneToTwo"].flatMap((format) => ["trial", "single", "pack6", "pack12"].map((tier) => ({ format, tier })));
+    priceEditorGrid.innerHTML = keys.map(({ format, tier }) => `<label class="price-editor-field"><span>${escapeHtml(priceLabel(format, tier))}</span><div><b>EUR</b><input type="number" min="0" max="100000" step="0.01" inputmode="decimal" data-price-format="${format}" data-price-tier="${tier}" value="${Number(prices?.[format]?.[tier] || 0).toFixed(2)}"></div></label>`).join("");
+    const reported = state.pricingServices.filter((service) => service.appointmentTypeID && service.acuityPrice !== null);
+    const mismatches = reported.filter((service) => service.matchesAcuity === false);
+    pricingReference.innerHTML = `<div class="record-editor-head"><strong>Acuity reference</strong><span class="status-pill">${reported.length ? `${mismatches.length} mismatch${mismatches.length === 1 ? "" : "es"}` : "Unavailable"}</span></div><p class="editor-note">Acuity’s API lets the dashboard read these amounts, but does not support changing appointment-type prices. Website and Stripe use the prices on the left.</p>${reported.length ? `<div class="pricing-reference-list">${reported.map((service) => `<div><strong>${escapeHtml(service.subject || service.label)}</strong><span>${escapeHtml(priceLabel(service.format, service.tier))}</span><em class="${service.matchesAcuity ? "matches" : "mismatch"}">Acuity: EUR ${service.acuityPrice.toFixed(2)} · Website: EUR ${Number(service.websitePrice).toFixed(2)}</em></div>`).join("")}</div>` : `<p class="muted">Acuity price data is not available at the moment. The website and Stripe prices above are still active.</p>`}`;
+  }
+
+  async function loadPricing() {
+    const data = await api("GET", PRICING_API);
+    state.pricing = data.pricing || state.pricing;
+    state.pricingServices = data.services || [];
+    renderPricing();
   }
 
   function subjectDisplay(subject) {
@@ -935,6 +965,24 @@
 
   operationSearchInput.addEventListener("input", renderOperations);
   refreshOperationsBtn.addEventListener("click", () => loadOperations().catch((error) => showError(error.message)));
+  refreshPricingBtn.addEventListener("click", () => loadPricing().catch((error) => showError(error.message)));
+  savePricingBtn.addEventListener("click", async () => {
+    try {
+      const prices = { oneToOne: {}, oneToTwo: {} };
+      priceEditorGrid.querySelectorAll("[data-price-format]").forEach((input) => {
+        const amount = Number(input.value);
+        if (!Number.isFinite(amount) || amount < 0 || amount > 100000) throw new Error(`Enter a valid price for ${priceLabel(input.dataset.priceFormat, input.dataset.priceTier)}.`);
+        prices[input.dataset.priceFormat][input.dataset.priceTier] = Math.round(amount * 100) / 100;
+      });
+      const data = await api("PUT", PRICING_API, { version: 1, currency: "EUR", prices });
+      state.pricing = data.pricing || { currency: "EUR", prices };
+      state.pricingServices = data.services || state.pricingServices;
+      renderPricing();
+      showStatus("Prices saved. Website quotes and new Stripe checkouts now use these amounts.");
+    } catch (error) {
+      showError(error.message);
+    }
+  });
 
   [templateSubjectInput, templateHeadingInput, templateMessageInput, templateCtaInput, templateNoteInput].forEach((input) => input.addEventListener("input", renderEmailPreview));
   saveTemplateBtn.addEventListener("click", async () => {

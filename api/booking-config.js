@@ -8,6 +8,7 @@ const {
   writeBookingConfig
 } = require("../lib/booking-config");
 const { listPackageKeys, PACKAGE_LABELS, TIER_LABELS } = require("../lib/pricing");
+const { readPriceState } = require("../lib/price-config");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -50,14 +51,16 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
-      const config = enrichBookingConfig(await readBookingConfig());
+      const [config, pricing] = await Promise.all([readBookingConfig(), readPriceState()]);
+      const enrichedConfig = enrichBookingConfig(config);
       return sendJson(req, res, 200, {
         ok: true,
-        version: config.version,
-        subjects: listSubjectCatalog(config),
-        services: listServiceCatalog(config),
+        version: enrichedConfig.version,
+        subjects: listSubjectCatalog(enrichedConfig),
+        services: listServiceCatalog(enrichedConfig),
         packageCatalog: buildPackageCatalog(),
-        serviceMap: config.serviceMap
+        serviceMap: enrichedConfig.serviceMap,
+        pricing
       });
     }
 

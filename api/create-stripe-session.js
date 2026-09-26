@@ -2,6 +2,7 @@ const { getStripeClient } = require("../lib/stripe");
 const { handleOptions, readJson, resolveBaseOrigin, resolvePublicOrigin, sendJson } = require("../lib/http");
 const { applyCoupon, couponAppliesToPackage, getCouponByCode } = require("../lib/coupons");
 const { resolveBasePrice, resolvePackageLabel } = require("../lib/pricing");
+const { resolveConfiguredPrice } = require("../lib/price-config");
 const { buildSessionsLink } = require("../lib/receipt-email");
 
 function cleanString(value) {
@@ -61,7 +62,7 @@ module.exports = async function handler(req, res) {
     const appointmentTypeID = requiredString(body, "appointmentTypeID");
     const metadata = resolveMetadata(body);
 
-    const basePrice = resolveBasePrice(format, tier);
+    const basePrice = await resolveConfiguredPrice(format, tier);
     if (basePrice === null) {
       return sendJson(req, res, 400, { ok: false, error: "Unknown package format or tier." });
     }

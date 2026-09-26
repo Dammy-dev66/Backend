@@ -29,10 +29,11 @@ const DEFAULT_CLASS_DATA = [
 ];
 let CLASS_DATA = DEFAULT_CLASS_DATA.slice();
 
-const FORMATS = [
+const DEFAULT_FORMATS = [
   { key: "oneToOne", label: "Tutor + one student", price: { trial: 25, single: 50, pack6: 264, pack12: 456 } },
   { key: "oneToTwo", label: "Tutor + two students", price: { trial: 35, single: 70, pack6: 360, pack12: 648 } }
 ];
+let FORMATS = DEFAULT_FORMATS.map((format) => ({ ...format, price: { ...format.price } }));
 
 const TIERS = [
   { key: "trial", label: "Trial class", sessions: 1, needsPackage: false },
@@ -118,9 +119,16 @@ async function loadBookingConfig() {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok && Array.isArray(data.subjects) && Array.isArray(data.services)) {
       CLASS_DATA = convertBookingConfigToClassData(data);
+      if (data.pricing?.prices) {
+        FORMATS = DEFAULT_FORMATS.map((format) => ({
+          ...format,
+          price: { ...format.price, ...(data.pricing.prices[format.key] || {}) }
+        }));
+      }
     }
   } catch {
     CLASS_DATA = DEFAULT_CLASS_DATA.slice();
+    FORMATS = DEFAULT_FORMATS.map((format) => ({ ...format, price: { ...format.price } }));
   }
 }
 

@@ -933,6 +933,94 @@ h1 {
   align-items: start;
 }
 
+.pricing-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(320px, .9fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.price-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.price-editor-field {
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.price-editor-field > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: #fbfaf7;
+}
+
+.price-editor-field b {
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.price-editor-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: #fff;
+  color: var(--navy);
+  font: inherit;
+  font-size: 15px;
+}
+
+.pricing-reference {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.pricing-reference-list {
+  display: grid;
+  max-height: 580px;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+}
+
+.pricing-reference-list > div {
+  display: grid;
+  gap: 3px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.pricing-reference-list strong {
+  color: var(--navy);
+  font-size: 12px;
+}
+
+.pricing-reference-list span,
+.pricing-reference-list em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.pricing-reference-list em.matches { color: #347257; }
+.pricing-reference-list em.mismatch { color: #aa5b21; }
+
 .operations-list-wrap,
 .client-drawer,
 .template-list {
@@ -1378,7 +1466,8 @@ h1 {
 @media (max-width: 720px) {
   .coupon-editor,
   .package-checkboxes,
-  .operations-summary {
+  .operations-summary,
+  .price-editor-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1401,7 +1490,8 @@ h1 {
   }
 
   .operations-layout,
-  .template-layout {
+  .template-layout,
+  .pricing-layout {
     grid-template-columns: 1fr;
   }
 

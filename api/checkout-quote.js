@@ -1,6 +1,7 @@
 const { handleOptions, readJson, sendJson } = require("../lib/http");
 const { applyCoupon, applyDiscount, couponAppliesToPackage, getCouponByCode } = require("../lib/coupons");
 const { resolveBasePrice, resolvePackageLabel } = require("../lib/pricing");
+const { resolveConfiguredPrice } = require("../lib/price-config");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -23,7 +24,7 @@ module.exports = async function handler(req, res) {
     const tier = cleanString(body.tier);
     const couponCode = normalizeCoupon(body.couponCode);
 
-    const basePrice = resolveBasePrice(format, tier);
+    const basePrice = await resolveConfiguredPrice(format, tier);
     if (basePrice === null) {
       return sendJson(req, res, 400, {
         ok: false,
