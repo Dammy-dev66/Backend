@@ -19,7 +19,7 @@ function loadHandler() {
     config: require.resolve("../lib/booking-config"),
     ledger: require.resolve("../lib/operations-ledger"),
     receipt: require.resolve("../lib/receipt-email"),
-    handler: require.resolve("../api/admin/appointment")
+    handler: require.resolve("../lib/admin-dashboard-api")
   };
   const calls = { reschedule: [], cancel: [], email: [] };
   const ledger = { packages: [], receipts: [], appointments: [], actions: [] };
@@ -40,7 +40,7 @@ function loadHandler() {
     recordReceipt: (state, item) => state.receipts.push(item)
   } };
   require.cache[paths.receipt] = { exports: { sendNotificationEmails: async (payload) => { calls.email.push(payload); return { sent: true }; } } };
-  return { handler: require("../api/admin/appointment"), calls };
+  return { handler: require("../lib/admin-dashboard-api").handleAppointment, calls };
 }
 
 test("dashboard reschedule uses Acuity and sends the branded reschedule email", async () => {

@@ -1,6 +1,7 @@
 const { handleOptions, readJson, sendJson } = require("../../lib/http");
 const { listPackageKeys, PACKAGE_LABELS, TIER_LABELS } = require("../../lib/pricing");
 const { normalizeCouponRecord, readCouponState, writeCouponState } = require("../../lib/coupons");
+const { handleDashboardResource } = require("../../lib/admin-dashboard-api");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -44,6 +45,10 @@ function normalizeStateBody(body) {
 
 module.exports = async function handler(req, res) {
   if (handleOptions(req, res)) return;
+
+  const url = new URL(req.url || "/", "http://localhost");
+  const resource = req.query?.resource || url.searchParams.get("resource");
+  if (resource) return handleDashboardResource(req, res, resource);
 
   try {
     requireAdminKey(req);

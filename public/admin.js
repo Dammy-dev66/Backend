@@ -1,10 +1,10 @@
 (() => {
   const BOOKING_API = "/api/booking-config";
   const COUPON_API = "/api/admin/coupons";
-  const OPERATIONS_API = "/api/admin/operations";
-  const CLIENT_API = "/api/admin/client";
-  const APPOINTMENT_API = "/api/admin/appointment";
-  const TEMPLATE_API = "/api/admin/email-templates";
+  const OPERATIONS_API = "/api/admin/coupons?resource=operations";
+  const CLIENT_API = "/api/admin/coupons?resource=client";
+  const APPOINTMENT_API = "/api/admin/coupons?resource=appointment";
+  const TEMPLATE_API = "/api/admin/coupons?resource=templates";
 
   const adminKeyInput = document.getElementById("adminKeyField");
   const tabButtons = Array.from(document.querySelectorAll(".admin-tab"));
@@ -511,14 +511,14 @@
   }
 
   async function loadClient(email) {
-    const data = await api("GET", `${CLIENT_API}?email=${encodeURIComponent(email)}`);
+    const data = await api("GET", `${CLIENT_API}&email=${encodeURIComponent(email)}`);
     renderClientDrawer(data);
   }
 
   async function loadAppointmentSlots(appointment) {
     const date = clientDrawer.querySelector("#rescheduleDate").value;
     if (!date) throw new Error("Choose a new date first.");
-    const data = await api("GET", `${APPOINTMENT_API}?id=${encodeURIComponent(appointment.id)}&date=${encodeURIComponent(date)}`);
+    const data = await api("GET", `${APPOINTMENT_API}&id=${encodeURIComponent(appointment.id)}&date=${encodeURIComponent(date)}`);
     const select = clientDrawer.querySelector("#rescheduleTime");
     const slots = data.times || [];
     select.innerHTML = slots.length ? slots.map((slot) => {
