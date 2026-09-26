@@ -25,7 +25,9 @@ function loadHandler({ rescheduleError } = {}) {
   const ledger = { packages: [], receipts: [], appointments: [], actions: [] };
   Object.values(paths).forEach((item) => delete require.cache[item]);
   require.cache[paths.acuity] = { exports: {
+    checkCertificate: async () => ({ remaining: 0 }),
     getAppointment: async () => ({ id: "APT-1", email: "parent@example.com", firstName: "Jordan", lastName: "Parent", datetime: "2026-10-03T10:00:00+01:00", appointmentTypeID: "42", calendarID: "7", type: "English Literature" }),
+    listAppointments: async () => [],
     listAvailabilityTimes: async () => [{ time: "2026-10-04T10:00:00+01:00" }],
     rescheduleAppointment: async (id, payload) => {
       calls.reschedule.push({ id, payload });
@@ -39,6 +41,7 @@ function loadHandler({ rescheduleError } = {}) {
     clientKey: (email) => String(email || "").trim().toLowerCase(),
     readLedger: async () => ledger,
     updateLedger: async (mutator) => { mutator(ledger); return ledger; },
+    upsertPackage: (state) => state,
     recordAction: (state, item) => state.actions.push(item),
     recordAppointment: (state, item) => state.appointments.push(item),
     recordReceipt: (state, item) => state.receipts.push(item)

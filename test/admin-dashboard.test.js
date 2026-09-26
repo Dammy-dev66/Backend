@@ -53,6 +53,38 @@ test("ledger records package purchases, booking use, receipt sends, and dashboar
   assert.equal(ledger.stripeBackfillCursor, "");
 });
 
+test("Stripe backfill checkpoints each page and completes without duplicate receipts", async () => {
+  const apiPath = require.resolve("../lib/admin-dashboard-api");
+  const stripePath = require.resolve("../lib/stripe");
+  const originalApi = require.cache[apiPath];
+  const originalStripe = require.cache[stripePath];
+  const calls = [];
+  const pages = [
+    { has_more: true, data: [{ id: "cs_first", created: 1790000000, metadata: { email: "parent@example.com", certificate: "PKG-1", orderID: "ORDER-1", productID: "product-1", appointmentTypeID: "42" } }] },
+    { has_more: false, data: [{ id: "cs_second", created: 1790000001, metadata: { email: "parent@example.com", certificate: "PKG-2", orderID: "ORDER-2", productID: "product-2", appointmentTypeID: "42" } }] }
+  ];
+  delete require.cache[apiPath];
+  require.cache[stripePath] = { exports: { getStripeClient: () => ({ checkout: { sessions: { list: async (params) => { calls.push(params); return pages[calls.length - 1]; } } } }) } };
+  try {
+    const { backfillPackages } = require("../lib/admin-dashboard-api");
+    const ledger = defaultLedger();
+    await backfillPackages(ledger);
+    assert.equal(ledger.backfillVersion, 1);
+    assert.equal(ledger.stripeBackfillCursor, "cs_first");
+    assert.equal(ledger.packages.length, 1);
+    await backfillPackages(ledger);
+    assert.equal(calls[1].starting_after, "cs_first");
+    assert.equal(ledger.backfillVersion, 2);
+    assert.equal(ledger.stripeBackfillCursor, "");
+    assert.equal(ledger.packages.length, 2);
+    assert.equal(ledger.receipts.length, 2);
+  } finally {
+    delete require.cache[apiPath];
+    if (originalApi) require.cache[apiPath] = originalApi;
+    if (originalStripe) require.cache[stripePath] = originalStripe; else delete require.cache[stripePath];
+  }
+});
+
 test("all dashboard email templates are delivered through the existing Make payload", async () => {
   const calls = [];
   const originalFetch = global.fetch;
