@@ -108,3 +108,16 @@ test("dashboard cancellation does not create refund or package-credit actions", 
   assert.equal(Object.hasOwn(calls.cancel[0].payload, "refund"), false);
   if (previous === undefined) delete process.env.FINBAR_ADMIN_KEY; else process.env.FINBAR_ADMIN_KEY = previous;
 });
+
+test("dashboard resend uses the booking template and records the delivery attempt", async () => {
+  const previous = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "fin-key";
+  const { handler, calls, ledger } = loadHandler();
+  const res = response();
+  await handler(request({ action: "resend", appointmentId: "APT-1" }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls.email[0].templateKind, "booking");
+  assert.equal(ledger.actions[0].type, "resend");
+  assert.equal(ledger.receipts[0].kind, "booking");
+  if (previous === undefined) delete process.env.FINBAR_ADMIN_KEY; else process.env.FINBAR_ADMIN_KEY = previous;
+});

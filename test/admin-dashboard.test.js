@@ -103,6 +103,11 @@ test("all dashboard email templates are delivered through the existing Make payl
     assert.match(calls[1].subject, /booking confirmed/i);
     assert.match(calls[2].subject, /rescheduled/i);
     assert.match(calls[3].subject, /canceled/i);
+    calls.forEach((payload) => {
+      assert.equal(payload.to, "parent@example.com");
+      assert.match(payload.html, /Finbar B\. Elite Tutoring/);
+      assert.match(payload.html, /href="https:\/\/backend-ymlj\.vercel\.app\//);
+    });
   } finally {
     global.fetch = originalFetch;
     if (originalWebhook === undefined) delete process.env.MAKE_RECEIPT_WEBHOOK_URL; else process.env.MAKE_RECEIPT_WEBHOOK_URL = originalWebhook;
