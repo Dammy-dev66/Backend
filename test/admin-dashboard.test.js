@@ -2,6 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { requireAdminKey } = require("../lib/admin-auth");
 const { defaultTemplates, interpolateTemplate, normalizeTemplateState } = require("../lib/email-templates");
+const { defaultProofreadingTemplates, interpolateProofreadingTemplate, normalizeProofreadingTemplateState } = require("../lib/proofreading-email-templates");
+const { buildProofreadingEmail } = require("../lib/admin-dashboard-api");
 const { buildEmailHtml, sendNotificationEmails } = require("../lib/receipt-email");
 const { buildOperationsSummary, historyStart, normalizeAppointment } = require("../lib/operations");
 const { defaultLedger, recordAction, recordAppointment, recordReceipt, upsertPackage } = require("../lib/operations-ledger");
@@ -23,6 +25,23 @@ test("email templates retain safe defaults and interpolate only approved variabl
   const html = buildEmailHtml({ heading: "<unsafe>", subject: "<subject>", bookingLink: "https://example.com" });
   assert.match(html, /&lt;unsafe&gt;/);
   assert.match(html, /&lt;subject&gt;/);
+});
+
+test("proofreading templates retain defaults and render escaped, fixed review actions", () => {
+  const state = normalizeProofreadingTemplateState({ templates: { accepted: { message: "Hi {clientName}, work is underway." } } });
+  assert.equal(state.templates.accepted.message, "Hi {clientName}, work is underway.");
+  assert.equal(state.templates.reviewDocument.ctaLabel, defaultProofreadingTemplates().templates.reviewDocument.ctaLabel);
+  assert.equal(interpolateProofreadingTemplate("For {clientName}", { clientName: "Jordan" }), "For Jordan");
+  const email = buildProofreadingEmail({
+    kind: "reviewDocument",
+    template: defaultProofreadingTemplates().templates.reviewDocument,
+    data: { clientName: "<Jordan>", documentUrl: "https://files.example.test/work.docx", reference: "PRF-1", token: "token-1", submissionText: "<unsafe>" }
+  });
+  assert.match(email.subject, /<Jordan>/, "Subject remains plain text and is not HTML escaped.");
+  assert.match(email.html, /&lt;Jordan&gt;/);
+  assert.match(email.html, /&lt;unsafe&gt;/);
+  assert.match(email.html, /action=accept/);
+  assert.match(email.html, /action=refuse/);
 });
 
 test("operations normalize live appointments and expose package balance badges", () => {

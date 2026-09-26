@@ -946,6 +946,18 @@ h1 {
   gap: 0;
 }
 
+.preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.preview-actions .preview-secondary {
+  background: #17243a;
+  color: #fff;
+}
+
 .operation-row {
   display: grid;
   grid-template-columns: 1.1fr 1fr 1fr auto;

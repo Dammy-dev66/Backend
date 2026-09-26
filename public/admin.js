@@ -5,6 +5,7 @@
   const CLIENT_API = "/api/admin/coupons?resource=client";
   const APPOINTMENT_API = "/api/admin/coupons?resource=appointment";
   const TEMPLATE_API = "/api/admin/coupons?resource=templates";
+  const PROOF_TEMPLATE_API = "/api/admin/coupons?resource=proofreading-templates";
 
   const adminKeyInput = document.getElementById("adminKeyField");
   const tabButtons = Array.from(document.querySelectorAll(".admin-tab"));
@@ -44,6 +45,17 @@
   const saveTemplateBtn = document.getElementById("saveTemplateBtn");
   const resetTemplateBtn = document.getElementById("resetTemplateBtn");
   const emailPreview = document.getElementById("emailPreview");
+  const proofTemplateList = document.getElementById("proofTemplateList");
+  const proofTemplateEditorTitle = document.getElementById("proofTemplateEditorTitle");
+  const proofTemplateAudience = document.getElementById("proofTemplateAudience");
+  const proofTemplateSubjectInput = document.getElementById("proofTemplateSubjectInput");
+  const proofTemplateHeadingInput = document.getElementById("proofTemplateHeadingInput");
+  const proofTemplateMessageInput = document.getElementById("proofTemplateMessageInput");
+  const proofTemplateCtaInput = document.getElementById("proofTemplateCtaInput");
+  const proofTemplateNoteInput = document.getElementById("proofTemplateNoteInput");
+  const saveProofTemplateBtn = document.getElementById("saveProofTemplateBtn");
+  const resetProofTemplateBtn = document.getElementById("resetProofTemplateBtn");
+  const proofEmailPreview = document.getElementById("proofEmailPreview");
 
   const subjectNameInput = document.getElementById("subjectNameInput");
   const subjectSlugInput = document.getElementById("subjectSlugInput");
@@ -84,6 +96,9 @@
     templates: {},
     defaults: {},
     selectedTemplateKind: "package",
+    proofreadingTemplates: {},
+    proofreadingDefaults: {},
+    selectedProofreadingTemplateKind: "reviewDocument",
     search: {
       subjects: "",
       services: "",
@@ -133,6 +148,7 @@
     tabPanels.forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== tab));
     if (getAdminKey() && tab === "operations") loadOperations().catch((error) => showError(error.message));
     if (getAdminKey() && tab === "templates") loadTemplates().catch((error) => showError(error.message));
+    if (getAdminKey() && tab === "proofreading-templates") loadProofreadingTemplates().catch((error) => showError(error.message));
   }
 
   function renderPackageList() {
@@ -578,6 +594,63 @@
     fillTemplateEditor();
   }
 
+  function proofreadingTemplateLabel(kind) {
+    return {
+      reviewDocument: "New request - uploaded document",
+      reviewPasted: "New request - pasted text",
+      accepted: "Request accepted",
+      declined: "Request declined"
+    }[kind] || kind;
+  }
+
+  function proofreadingTemplateAudience(kind) {
+    return kind === "reviewDocument" || kind === "reviewPasted" ? "Internal review email" : "Customer email";
+  }
+
+  function currentProofreadingTemplate() {
+    return state.proofreadingTemplates[state.selectedProofreadingTemplateKind] || {};
+  }
+
+  function fillProofreadingTemplateEditor() {
+    const template = currentProofreadingTemplate();
+    proofTemplateEditorTitle.textContent = proofreadingTemplateLabel(state.selectedProofreadingTemplateKind);
+    proofTemplateAudience.textContent = proofreadingTemplateAudience(state.selectedProofreadingTemplateKind);
+    proofTemplateSubjectInput.value = template.subject || "";
+    proofTemplateHeadingInput.value = template.heading || "";
+    proofTemplateMessageInput.value = template.message || "";
+    proofTemplateCtaInput.value = template.ctaLabel || "";
+    proofTemplateNoteInput.value = template.extraNote || "";
+    proofTemplateCtaInput.closest(".field").classList.toggle("hidden", state.selectedProofreadingTemplateKind !== "reviewDocument");
+    renderProofreadingEmailPreview();
+  }
+
+  function renderProofreadingTemplates() {
+    proofTemplateList.innerHTML = Object.keys(state.proofreadingTemplates).map((kind) => `<button class="record-row${kind === state.selectedProofreadingTemplateKind ? " active" : ""}" type="button" data-proof-template-kind="${kind}"><strong>${proofreadingTemplateLabel(kind)}</strong><span>${proofreadingTemplateAudience(kind)}</span></button>`).join("");
+    proofTemplateList.querySelectorAll("[data-proof-template-kind]").forEach((button) => button.addEventListener("click", () => {
+      state.selectedProofreadingTemplateKind = button.dataset.proofTemplateKind;
+      renderProofreadingTemplates();
+      fillProofreadingTemplateEditor();
+    }));
+  }
+
+  function renderProofreadingEmailPreview() {
+    const kind = state.selectedProofreadingTemplateKind;
+    const values = { clientName: "Jordan", serviceLevel: "Premium", wordCount: "1,250", deadline: "Friday, 2 October", price: "EUR 48.00", reference: "PRF-1064" };
+    const interpolate = (value) => String(value || "").replace(/\{(\w+)\}/g, (_, key) => values[key] || "");
+    const internal = kind === "reviewDocument" || kind === "reviewPasted";
+    const actionPreview = internal ? `<div class="email-preview__code">Client details<br><strong>Jordan · Premium · ${values.wordCount} words</strong></div><div class="preview-actions">${kind === "reviewDocument" && proofTemplateCtaInput.value.trim() ? `<button type="button">${escapeHtml(interpolate(proofTemplateCtaInput.value))}</button>` : ""}<button class="preview-secondary" type="button">Accept and charge</button></div>` : `<div class="email-preview__code">Request ${values.reference}<br><strong>${kind === "accepted" ? `Returned by ${values.deadline}` : "Nothing has been charged"}</strong></div>`;
+    proofEmailPreview.innerHTML = `<p class="eyebrow">${internal ? "Internal preview" : "Customer preview"}</p><h3>${escapeHtml(interpolate(proofTemplateHeadingInput.value))}</h3><p>${escapeHtml(interpolate(proofTemplateMessageInput.value))}</p>${actionPreview}<p class="email-preview__note">${escapeHtml(interpolate(proofTemplateNoteInput.value))}</p>`;
+  }
+
+  async function loadProofreadingTemplates() {
+    const data = await api("GET", PROOF_TEMPLATE_API);
+    state.proofreadingTemplates = data.templates || {};
+    state.proofreadingDefaults = data.defaults || {};
+    if (!state.proofreadingTemplates[state.selectedProofreadingTemplateKind]) state.selectedProofreadingTemplateKind = Object.keys(state.proofreadingTemplates)[0] || "reviewDocument";
+    renderProofreadingTemplates();
+    fillProofreadingTemplateEditor();
+  }
+
   function buildSubjectPayload() {
     const edited = copySubject(currentSubject());
     edited.name = subjectNameInput.value.trim();
@@ -873,6 +946,30 @@
     showStatus("Email template restored to the default wording.");
     renderTemplates();
     fillTemplateEditor();
+  });
+
+  [proofTemplateSubjectInput, proofTemplateHeadingInput, proofTemplateMessageInput, proofTemplateCtaInput, proofTemplateNoteInput].forEach((input) => input.addEventListener("input", renderProofreadingEmailPreview));
+  saveProofTemplateBtn.addEventListener("click", async () => {
+    const templates = { ...state.proofreadingTemplates, [state.selectedProofreadingTemplateKind]: {
+      subject: proofTemplateSubjectInput.value.trim(),
+      heading: proofTemplateHeadingInput.value.trim(),
+      message: proofTemplateMessageInput.value.trim(),
+      ctaLabel: proofTemplateCtaInput.value.trim(),
+      extraNote: proofTemplateNoteInput.value.trim()
+    } };
+    const data = await api("PUT", PROOF_TEMPLATE_API, { version: 1, templates });
+    state.proofreadingTemplates = data.templates || templates;
+    showStatus("Proofreading email template saved. Future proofreading emails will use this wording.");
+    renderProofreadingTemplates();
+    fillProofreadingTemplateEditor();
+  });
+  resetProofTemplateBtn.addEventListener("click", async () => {
+    if (!window.confirm("Reset this proofreading email template to Finbar's default wording?")) return;
+    const data = await api("POST", PROOF_TEMPLATE_API, { kind: state.selectedProofreadingTemplateKind });
+    state.proofreadingTemplates = data.templates || state.proofreadingTemplates;
+    showStatus("Proofreading email template restored to the default wording.");
+    renderProofreadingTemplates();
+    fillProofreadingTemplateEditor();
   });
 
   adminKeyInput.addEventListener("keydown", (event) => {

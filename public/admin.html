@@ -43,6 +43,7 @@
       <nav class="admin-tabs" aria-label="Dashboard sections">
         <button class="admin-tab active" data-tab="operations" type="button">Operations</button>
         <button class="admin-tab" data-tab="templates" type="button">Email templates</button>
+        <button class="admin-tab" data-tab="proofreading-templates" type="button">Proofreading emails</button>
         <button class="admin-tab" data-tab="subjects" type="button">Subjects</button>
         <button class="admin-tab" data-tab="services" type="button">Lesson types</button>
         <button class="admin-tab" data-tab="coupons" type="button">Coupons</button>
@@ -78,6 +79,24 @@
             <label class="field"><span>Supporting note</span><textarea id="templateNoteInput" rows="3"></textarea></label>
             <div class="editor-actions editor-actions--split"><button class="btn-secondary" id="resetTemplateBtn" type="button">Reset this template</button><button class="btn-primary" id="saveTemplateBtn" type="button">Save template</button></div>
             <div class="email-preview" id="emailPreview"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-tab-panel hidden" data-panel="proofreading-templates">
+        <div class="section-banner"><div><h2>Proofreading emails</h2><p>Edit the wording for proofreading review, acceptance, and decline emails. The Finbar B. layout, logo, payment details, and secure review links stay protected.</p></div></div>
+        <div class="template-layout">
+          <div class="template-list" id="proofTemplateList"></div>
+          <div class="record-editor sticky-editor">
+            <div class="record-editor-head"><strong id="proofTemplateEditorTitle">Proofreading email</strong><span class="status-pill" id="proofTemplateAudience">Customer email</span></div>
+            <p class="editor-note">You can use: <code>{clientName}</code>, <code>{serviceLevel}</code>, <code>{wordCount}</code>, <code>{deadline}</code>, <code>{price}</code>, and <code>{reference}</code>.</p>
+            <label class="field"><span>Email subject</span><input id="proofTemplateSubjectInput" type="text"></label>
+            <label class="field"><span>Heading</span><input id="proofTemplateHeadingInput" type="text"></label>
+            <label class="field"><span>Main message</span><textarea id="proofTemplateMessageInput" rows="4"></textarea></label>
+            <label class="field"><span>Document button label</span><input id="proofTemplateCtaInput" type="text" placeholder="Used only for uploaded documents"></label>
+            <label class="field"><span>Supporting note</span><textarea id="proofTemplateNoteInput" rows="3"></textarea></label>
+            <div class="editor-actions editor-actions--split"><button class="btn-secondary" id="resetProofTemplateBtn" type="button">Reset this template</button><button class="btn-primary" id="saveProofTemplateBtn" type="button">Save template</button></div>
+            <div class="email-preview" id="proofEmailPreview"></div>
           </div>
         </div>
       </section>
