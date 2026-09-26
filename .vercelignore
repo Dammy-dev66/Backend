@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.example
+data/
+test/
+admin-dashboard.png
+public/course-pages-preview.html
+public/subject-grid-desktop.png
+public/subject-grid-mobile.png
+public/testimonials-preview.html
