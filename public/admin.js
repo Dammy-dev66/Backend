@@ -1,6 +1,10 @@
 (() => {
   const BOOKING_API = "/api/booking-config";
   const COUPON_API = "/api/admin/coupons";
+  const OPERATIONS_API = "/api/admin/operations";
+  const CLIENT_API = "/api/admin/client";
+  const APPOINTMENT_API = "/api/admin/appointment";
+  const TEMPLATE_API = "/api/admin/email-templates";
 
   const adminKeyInput = document.getElementById("adminKeyField");
   const tabButtons = Array.from(document.querySelectorAll(".admin-tab"));
@@ -25,6 +29,21 @@
   const subjectStatus = document.getElementById("subjectStatus");
   const serviceStatus = document.getElementById("serviceStatus");
   const couponStatus = document.getElementById("couponStatus");
+  const operationsSummary = document.getElementById("operationsSummary");
+  const operationsList = document.getElementById("operationsList");
+  const clientDrawer = document.getElementById("clientDrawer");
+  const operationSearchInput = document.getElementById("operationSearchInput");
+  const refreshOperationsBtn = document.getElementById("refreshOperationsBtn");
+  const templateList = document.getElementById("templateList");
+  const templateEditorTitle = document.getElementById("templateEditorTitle");
+  const templateSubjectInput = document.getElementById("templateSubjectInput");
+  const templateHeadingInput = document.getElementById("templateHeadingInput");
+  const templateMessageInput = document.getElementById("templateMessageInput");
+  const templateCtaInput = document.getElementById("templateCtaInput");
+  const templateNoteInput = document.getElementById("templateNoteInput");
+  const saveTemplateBtn = document.getElementById("saveTemplateBtn");
+  const resetTemplateBtn = document.getElementById("resetTemplateBtn");
+  const emailPreview = document.getElementById("emailPreview");
 
   const subjectNameInput = document.getElementById("subjectNameInput");
   const subjectSlugInput = document.getElementById("subjectSlugInput");
@@ -51,7 +70,7 @@
   const activeInput = document.getElementById("activeInput");
 
   const state = {
-    tab: "subjects",
+    tab: "operations",
     subjects: [],
     services: [],
     coupons: [],
@@ -59,6 +78,12 @@
     selectedSubjectId: "",
     selectedServiceId: "",
     selectedCouponCode: "",
+    operations: [],
+    operationsSummary: {},
+    selectedClientEmail: "",
+    templates: {},
+    defaults: {},
+    selectedTemplateKind: "package",
     search: {
       subjects: "",
       services: "",
@@ -106,6 +131,8 @@
     state.tab = tab;
     tabButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
     tabPanels.forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== tab));
+    if (getAdminKey() && tab === "operations") loadOperations().catch((error) => showError(error.message));
+    if (getAdminKey() && tab === "templates") loadTemplates().catch((error) => showError(error.message));
   }
 
   function renderPackageList() {
@@ -370,6 +397,184 @@
     return data;
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatDate(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "Time to be confirmed" : new Intl.DateTimeFormat("en-IE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Dublin" }).format(date);
+  }
+
+  function operationBadge(item) {
+    if (item.canceled) return "Canceled";
+    if (Array.isArray(item.packageRemaining) && item.packageRemaining.length) return `${item.packageRemaining[0]} package lessons left`;
+    if (Array.isArray(item.packageCodes) && item.packageCodes.length) return "Package linked";
+    return item.status || "Scheduled";
+  }
+
+  function renderOperations() {
+    const summary = state.operationsSummary || {};
+    operationsSummary.innerHTML = [
+      ["Today", summary.today || 0],
+      ["Upcoming", summary.upcoming || 0],
+      ["Recent", summary.recent || 0],
+      ["Canceled", summary.canceled || 0]
+    ].map(([label, value]) => `<div class="operation-stat"><strong>${value}</strong><span>${label}</span></div>`).join("");
+
+    const query = operationSearchInput.value.trim().toLowerCase();
+    const items = state.operations.filter((item) => !query || [item.clientName, item.email, item.subject, item.appointmentTypeName].some((value) => String(value || "").toLowerCase().includes(query)));
+    if (!items.length) {
+      operationsList.innerHTML = `<p class="muted">No bookings match this view.</p>`;
+      return;
+    }
+    operationsList.innerHTML = items.map((item) => `
+      <button type="button" class="operation-row${item.id === state.selectedAppointmentId ? " active" : ""}" data-appointment-id="${escapeHtml(item.id)}" data-client-email="${escapeHtml(item.email)}">
+        <span class="operation-row__time">${escapeHtml(formatDate(item.datetime))}</span>
+        <strong>${escapeHtml(item.clientName)}</strong>
+        <span>${escapeHtml(item.subject)}</span>
+        <small>${escapeHtml(item.email)}</small>
+        <em>${escapeHtml(operationBadge(item))}</em>
+      </button>
+    `).join("");
+    operationsList.querySelectorAll("[data-appointment-id]").forEach((button) => button.addEventListener("click", () => {
+      state.selectedAppointmentId = button.dataset.appointmentId;
+      state.selectedClientEmail = button.dataset.clientEmail;
+      renderOperations();
+      loadClient(button.dataset.clientEmail).catch((error) => showError(error.message));
+    }));
+  }
+
+  async function loadOperations() {
+    const data = await api("GET", OPERATIONS_API);
+    state.operations = data.appointments || [];
+    state.operationsSummary = data.summary || {};
+    renderOperations();
+  }
+
+  function selectedClientAppointment(client) {
+    return (client.appointments || []).find((item) => item.id === state.selectedAppointmentId) || client.appointments?.[0] || null;
+  }
+
+  function renderClientDrawer(client) {
+    const appointment = selectedClientAppointment(client);
+    if (!appointment) {
+      clientDrawer.innerHTML = `<div class="drawer-empty">No appointment details are available for this client.</div>`;
+      return;
+    }
+    const packages = client.packages || [];
+    const receipts = client.receipts || [];
+    const actions = client.actions || [];
+    clientDrawer.innerHTML = `
+      <div class="drawer-head"><div><span class="eyebrow">Client record</span><h3>${escapeHtml(appointment.clientName)}</h3><a href="mailto:${escapeHtml(client.email)}">${escapeHtml(client.email)}</a></div><button type="button" class="drawer-close" aria-label="Close client details">×</button></div>
+      <div class="client-booking"><strong>${escapeHtml(appointment.subject)}</strong><span>${escapeHtml(formatDate(appointment.datetime))}</span><small>${escapeHtml(appointment.status)}</small></div>
+      <section class="drawer-section"><h4>Client bookings</h4>${(client.appointments || []).map((item) => `<button class="client-appointment${item.id === appointment.id ? " active" : ""}" type="button" data-client-appointment="${escapeHtml(item.id)}"><strong>${escapeHtml(item.subject)}</strong><span>${escapeHtml(formatDate(item.datetime))}</span><small>${escapeHtml(item.status)}</small></button>`).join("")}</section>
+      <section class="drawer-section"><h4>Package balance</h4>${packages.length ? packages.map((item) => `<div class="package-balance"><strong>${escapeHtml(item.certificate || "Package code pending")}</strong><span>${Number.isFinite(item.remaining) ? `${item.remaining} lesson${item.remaining === 1 ? "" : "s"} remaining` : "Check completed when this record opened"}</span></div>`).join("") : `<p class="muted">No linked package yet.</p>`}
+        <details class="link-package"><summary>Link an older package</summary><div class="link-package__fields"><input id="linkPackageCode" placeholder="Package code"><input id="linkPackageType" placeholder="Appointment type ID" value="${escapeHtml(appointment.appointmentTypeID)}"><button class="btn-secondary" type="button" id="linkPackageBtn">Link package</button></div></details>
+      </section>
+      <section class="drawer-section"><h4>Booking actions</h4>
+        <div class="action-grid"><button class="btn-secondary" type="button" id="resendBookingBtn">Resend email</button><button class="btn-secondary" type="button" id="showRescheduleBtn">Reschedule</button><button class="btn-danger" type="button" id="cancelBookingBtn">Cancel lesson</button></div>
+        <div class="reschedule-panel hidden" id="reschedulePanel"><label class="field"><span>New date</span><input id="rescheduleDate" type="date"></label><button class="btn-secondary" id="loadSlotsBtn" type="button">Show available times</button><select id="rescheduleTime" class="hidden"></select><input id="rescheduleNote" class="hidden" placeholder="Optional note for the client"><button class="btn-primary hidden" id="confirmRescheduleBtn" type="button">Confirm reschedule</button></div>
+      </section>
+      <section class="drawer-section"><h4>Receipt history</h4>${receipts.length ? receipts.slice(0, 5).map((item) => `<p class="timeline-row"><strong>${escapeHtml(item.kind || "Email")}</strong><span>${item.sent ? "Sent" : "Not sent"} · ${escapeHtml(formatDate(item.createdAt))}</span></p>`).join("") : `<p class="muted">No recorded receipt emails yet.</p>`}</section>
+      <section class="drawer-section"><h4>Internal action history</h4>${actions.length ? actions.slice(0, 5).map((item) => `<p class="timeline-row"><strong>${escapeHtml(item.type)}</strong><span>${escapeHtml(formatDate(item.createdAt))}${item.note ? ` · ${escapeHtml(item.note)}` : ""}</span></p>`).join("") : `<p class="muted">No dashboard actions yet.</p>`}</section>
+    `;
+    clientDrawer.querySelector(".drawer-close").addEventListener("click", () => { state.selectedClientEmail = ""; state.selectedAppointmentId = ""; clientDrawer.innerHTML = `<div class="drawer-empty">Select a booking to view the client, package balance, receipt history, and actions.</div>`; renderOperations(); });
+    clientDrawer.querySelectorAll("[data-client-appointment]").forEach((button) => button.addEventListener("click", () => { state.selectedAppointmentId = button.dataset.clientAppointment; renderClientDrawer(client); renderOperations(); }));
+    clientDrawer.querySelector("#linkPackageBtn").addEventListener("click", async () => {
+      const certificate = clientDrawer.querySelector("#linkPackageCode").value.trim();
+      const appointmentTypeID = clientDrawer.querySelector("#linkPackageType").value.trim();
+      await api("POST", CLIENT_API, { email: client.email, certificate, appointmentTypeID, subject: appointment.subject, format: appointment.format, tier: appointment.tier });
+      showStatus("Package linked. Its balance will now be checked.");
+      await loadClient(client.email);
+      await loadOperations();
+    });
+    clientDrawer.querySelector("#resendBookingBtn").addEventListener("click", () => runAppointmentAction(appointment, "resend").catch((error) => showError(error.message)));
+    clientDrawer.querySelector("#showRescheduleBtn").addEventListener("click", () => clientDrawer.querySelector("#reschedulePanel").classList.remove("hidden"));
+    clientDrawer.querySelector("#cancelBookingBtn").addEventListener("click", () => {
+      const note = window.prompt("Optional note to include in the cancellation email:", "") || "";
+      if (window.confirm("Cancel this lesson? This does not issue a refund or restore a package lesson.")) {
+        runAppointmentAction(appointment, "cancel", { note }).catch((error) => showError(error.message));
+      }
+    });
+    clientDrawer.querySelector("#loadSlotsBtn").addEventListener("click", () => loadAppointmentSlots(appointment).catch((error) => showError(error.message)));
+    clientDrawer.querySelector("#confirmRescheduleBtn").addEventListener("click", () => {
+      const datetime = clientDrawer.querySelector("#rescheduleTime").value;
+      const note = clientDrawer.querySelector("#rescheduleNote").value.trim();
+      if (datetime) runAppointmentAction(appointment, "reschedule", { datetime, calendarID: appointment.calendarID, note }).catch((error) => showError(error.message));
+    });
+  }
+
+  async function loadClient(email) {
+    const data = await api("GET", `${CLIENT_API}?email=${encodeURIComponent(email)}`);
+    renderClientDrawer(data);
+  }
+
+  async function loadAppointmentSlots(appointment) {
+    const date = clientDrawer.querySelector("#rescheduleDate").value;
+    if (!date) throw new Error("Choose a new date first.");
+    const data = await api("GET", `${APPOINTMENT_API}?id=${encodeURIComponent(appointment.id)}&date=${encodeURIComponent(date)}`);
+    const select = clientDrawer.querySelector("#rescheduleTime");
+    const slots = data.times || [];
+    select.innerHTML = slots.length ? slots.map((slot) => {
+      const datetime = slot.datetime || slot.time || slot;
+      return `<option value="${escapeHtml(datetime)}">${escapeHtml(formatDate(datetime))}</option>`;
+    }).join("") : `<option value="">No times available</option>`;
+    select.classList.remove("hidden");
+    clientDrawer.querySelector("#rescheduleNote").classList.remove("hidden");
+    clientDrawer.querySelector("#confirmRescheduleBtn").classList.toggle("hidden", !slots.length);
+  }
+
+  async function runAppointmentAction(appointment, action, extra = {}) {
+    const result = await api("POST", APPOINTMENT_API, { action, appointmentId: appointment.id, ...extra });
+    showStatus(action === "resend" ? "Customer email resent." : `Booking ${action}d and branded customer email sent.`);
+    await loadOperations();
+    await loadClient(state.selectedClientEmail);
+    return result;
+  }
+
+  function templateLabel(kind) {
+    return { package: "Package receipt", booking: "Booking confirmation", rescheduled: "Reschedule confirmation", canceled: "Cancellation confirmation" }[kind] || kind;
+  }
+
+  function currentTemplate() { return state.templates[state.selectedTemplateKind] || {}; }
+
+  function fillTemplateEditor() {
+    const template = currentTemplate();
+    templateEditorTitle.textContent = templateLabel(state.selectedTemplateKind);
+    templateSubjectInput.value = template.subject || "";
+    templateHeadingInput.value = template.heading || "";
+    templateMessageInput.value = template.message || "";
+    templateCtaInput.value = template.ctaLabel || "";
+    templateNoteInput.value = template.extraNote || "";
+    renderEmailPreview();
+  }
+
+  function renderTemplates() {
+    templateList.innerHTML = Object.keys(state.templates).map((kind) => `<button class="record-row${kind === state.selectedTemplateKind ? " active" : ""}" type="button" data-template-kind="${kind}"><strong>${templateLabel(kind)}</strong><span>Customer-facing email</span></button>`).join("");
+    templateList.querySelectorAll("[data-template-kind]").forEach((button) => button.addEventListener("click", () => { state.selectedTemplateKind = button.dataset.templateKind; renderTemplates(); fillTemplateEditor(); }));
+  }
+
+  function renderEmailPreview() {
+    const values = { recipientName: "Jordan", subject: "English Literature", bookingDate: "Tuesday, 30 September at 16:00", packageCode: "AB12CD34", actionNote: "Please contact Fin if you have any questions." };
+    const interpolate = (value) => String(value || "").replace(/\{(\w+)\}/g, (_, key) => values[key] || "");
+    emailPreview.innerHTML = `<p class="eyebrow">Customer preview</p><h3>${escapeHtml(interpolate(templateHeadingInput.value))}</h3><p>${escapeHtml(interpolate(templateMessageInput.value))}</p><div class="email-preview__code">Package code<br><strong>${values.packageCode}</strong></div><button type="button">${escapeHtml(interpolate(templateCtaInput.value))}</button><p class="email-preview__note">${escapeHtml(interpolate(templateNoteInput.value))}</p>`;
+  }
+
+  async function loadTemplates() {
+    const data = await api("GET", TEMPLATE_API);
+    state.templates = data.templates || {};
+    state.defaults = data.defaults || {};
+    if (!state.templates[state.selectedTemplateKind]) state.selectedTemplateKind = Object.keys(state.templates)[0] || "package";
+    renderTemplates();
+    fillTemplateEditor();
+  }
+
   function buildSubjectPayload() {
     const edited = copySubject(currentSubject());
     edited.name = subjectNameInput.value.trim();
@@ -454,7 +659,7 @@
     button.addEventListener("click", () => setTab(button.dataset.tab));
   });
 
-  refreshBtn.addEventListener("click", () => load().catch((error) => showError(error.message)));
+  refreshBtn.addEventListener("click", () => Promise.all([load(), loadOperations()]).catch((error) => showError(error.message)));
 
   addSubjectBtn.addEventListener("click", () => {
     setTab("subjects");
@@ -640,13 +845,40 @@
     });
   });
 
+  operationSearchInput.addEventListener("input", renderOperations);
+  refreshOperationsBtn.addEventListener("click", () => loadOperations().catch((error) => showError(error.message)));
+
+  [templateSubjectInput, templateHeadingInput, templateMessageInput, templateCtaInput, templateNoteInput].forEach((input) => input.addEventListener("input", renderEmailPreview));
+  saveTemplateBtn.addEventListener("click", async () => {
+    const templates = { ...state.templates, [state.selectedTemplateKind]: {
+      subject: templateSubjectInput.value.trim(),
+      heading: templateHeadingInput.value.trim(),
+      message: templateMessageInput.value.trim(),
+      ctaLabel: templateCtaInput.value.trim(),
+      extraNote: templateNoteInput.value.trim()
+    } };
+    const data = await api("PUT", TEMPLATE_API, { version: 1, templates });
+    state.templates = data.templates || templates;
+    showStatus("Email template saved. Future customer emails will use this wording.");
+    renderTemplates();
+    fillTemplateEditor();
+  });
+  resetTemplateBtn.addEventListener("click", async () => {
+    if (!window.confirm("Reset this email template to Finbar's default wording?")) return;
+    const data = await api("POST", TEMPLATE_API, { kind: state.selectedTemplateKind });
+    state.templates = data.templates || state.templates;
+    showStatus("Email template restored to the default wording.");
+    renderTemplates();
+    fillTemplateEditor();
+  });
+
   adminKeyInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
-      load().catch((error) => showError(error.message));
+      Promise.all([load(), loadOperations()]).catch((error) => showError(error.message));
     }
   });
 
-  setTab("subjects");
+  setTab("operations");
   load().catch((error) => {
     showStatus("");
     showError(error.message);

@@ -2,6 +2,7 @@ const { checkCertificate, createAppointment, resolvePackageCertificate } = requi
 const { handleOptions, readJson, sendJson } = require("../lib/http");
 const { resolveBaseOrigin } = require("../lib/http");
 const { sendBookingConfirmationEmails } = require("../lib/receipt-email");
+const { updateLedger, recordAppointment, recordReceipt } = require("../lib/operations-ledger");
 
 const REQUIRED_STRING_FIELDS = ["datetime", "firstName", "lastName", "email"];
 
@@ -124,6 +125,16 @@ module.exports = async function handler(req, res) {
         ctaLabel: remaining > 0 ? "Book remaining sessions" : "View booking options",
         extraNote: remaining > 0 ? "Your saved details will be ready when you return." : "Thank you for booking with Finbar B. Elite Tutoring."
       });
+    }
+
+    try {
+      await updateLedger((ledger) => {
+        recordAppointment(ledger, { id: appointment?.id, email: booking.email, subject: booking.subject, datetime: booking.datetime, appointmentTypeID: booking.appointmentTypeID, certificate, status: "Scheduled" });
+        if (receiptEmail) recordReceipt(ledger, { kind: "booking", email: booking.email, orderID: booking.orderID, appointmentID: appointment?.id, sent: receiptEmail.sent === true });
+        return ledger;
+      });
+    } catch (ledgerError) {
+      console.error("operations ledger update failed", ledgerError);
     }
 
     return sendJson(req, res, 201, {

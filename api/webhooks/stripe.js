@@ -4,6 +4,7 @@ const {
   sendPackageReceiptEmails,
   sendBookingConfirmationEmails
 } = require("../../lib/receipt-email");
+const { updateLedger, upsertPackage, recordAppointment, recordReceipt } = require("../../lib/operations-ledger");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -80,6 +81,7 @@ module.exports = async function handler(req, res) {
     let receiptEmail = null;
     let certificateCreated = false;
     let appointmentCreated = false;
+    let createdAppointment = null;
 
     if (!email) {
       return sendJson(req, res, 200, {
@@ -113,7 +115,7 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      await createAppointment({
+      createdAppointment = await createAppointment({
         datetime,
         appointmentTypeID: Number(appointmentTypeID),
         calendarID: calendarID ? Number(calendarID) : undefined,
@@ -147,6 +149,31 @@ module.exports = async function handler(req, res) {
       studentName,
       studentName2
     });
+
+    try {
+      await updateLedger((ledger) => {
+        if (productID) {
+          upsertPackage(ledger, {
+            email,
+            certificate: certificateCode,
+            orderID,
+            productID,
+            appointmentTypeID,
+            subject,
+            format,
+            tier,
+            purchasedAt: new Date().toISOString()
+          });
+        }
+        if (createdAppointment?.id) {
+          recordAppointment(ledger, { id: createdAppointment.id, email, subject, datetime, appointmentTypeID, certificate: certificateCode, status: "Scheduled" });
+        }
+        recordReceipt(ledger, { kind: productID ? "package" : "booking", email, orderID, appointmentID: createdAppointment?.id, sent: receiptEmail?.sent === true });
+        return ledger;
+      });
+    } catch (ledgerError) {
+      console.error("operations ledger update failed", ledgerError);
+    }
 
     return sendJson(req, res, 200, {
       ok: true,

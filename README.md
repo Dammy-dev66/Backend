@@ -115,6 +115,20 @@ It can store and manage:
 
 The public booking page and Carrd helper both read from the shared booking config endpoint, so subject and lesson mappings can be updated from the dashboard without hardcoding every route in two separate places.
 
+### 9. Operations dashboard
+
+The protected dashboard now includes an Operations view for upcoming and recent Acuity bookings, client records, linked package codes, receipt history, and dashboard action history.
+
+- bookings are read live from Acuity
+- package payments and booking actions are stored privately in Vercel Blob
+- Fin can reschedule, cancel, resend a customer email, and link a legacy package code
+- reschedules and cancellations suppress Acuity's default notification and send the branded Fin email through Make
+- cancellation does not issue a refund or restore a package session automatically
+
+### 10. Customer email templates
+
+Fin can edit the wording for package receipts, booking confirmations, reschedules, and cancellations in the dashboard. The email layout and Make handoff remain protected so no HTML or Make editing is needed.
+
 ### 9. 1:2 booking support
 
 The custom flow was expanded for 1:2 lessons.
@@ -238,6 +252,10 @@ Before we can call this fully done, the remaining work is:
 - `api/payment-complete.js` supports the local/mock payment path for older tests.
 - `api/booking-config.js` serves the shared booking config and accepts dashboard saves.
 - `api/admin/coupons.js` manages coupon rules.
+- `api/admin/operations.js` lists the operational booking view and backfills recent records.
+- `api/admin/client.js` returns a client record, package balances, and links legacy package codes.
+- `api/admin/appointment.js` loads availability and performs protected reschedule, cancel, and resend actions.
+- `api/admin/email-templates.js` manages the customer-facing email wording.
 - `api/resolve-package.js` finds package certificates.
 - `api/book-with-package.js` validates package redemption and books the appointment.
 - `api/availability.js` proxies Acuity availability dates and times.
