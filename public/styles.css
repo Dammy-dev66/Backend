@@ -958,6 +958,153 @@ h1 {
   color: #fff;
 }
 
+.proof-email-preview {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #fffdf8;
+  color: #17243a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.proof-email-preview__header {
+  padding: 20px;
+  background: #0a3d91;
+  color: #fffdf8;
+}
+
+.proof-email-preview__header img {
+  display: block;
+  width: min(190px, 100%);
+  height: auto;
+  padding: 7px 9px;
+  background: #fffdf8;
+}
+
+.proof-email-preview__header p,
+.proof-email-preview__header h3,
+.proof-email-preview__body p {
+  margin: 0;
+}
+
+.proof-email-preview__header p {
+  margin-top: 15px;
+  color: #dda31d;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.proof-email-preview__header h3 {
+  margin-top: 5px;
+  color: #fffdf8;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.proof-email-preview__body {
+  display: grid;
+  gap: 15px;
+  padding: 20px;
+}
+
+.proof-email-preview__greeting {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.proof-email-preview table {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.proof-email-preview td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #eee8de;
+  vertical-align: top;
+}
+
+.proof-email-preview tr:last-child td {
+  border-bottom: 0;
+}
+
+.proof-email-preview td:first-child {
+  width: 39%;
+  color: var(--muted);
+}
+
+.proof-email-preview td:last-child {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.proof-email-preview__button-row,
+.proof-email-preview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.proof-email-preview button {
+  border: 0;
+  background: #0a3d91;
+  color: #fffdf8;
+  padding: 10px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.proof-email-preview .proof-email-preview__accept {
+  background: #17243a;
+}
+
+.proof-email-preview .proof-email-preview__decline {
+  border: 1px solid #17243a;
+  background: #fffdf8;
+  color: #17243a;
+}
+
+.proof-email-preview__submitted,
+.proof-email-preview__deadline,
+.proof-email-preview__receipt {
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  background: #f7f3ed;
+}
+
+.proof-email-preview__submitted strong,
+.proof-email-preview__deadline strong,
+.proof-email-preview__receipt strong {
+  color: #0a3d91;
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.proof-email-preview__submitted p {
+  color: var(--muted);
+}
+
+.proof-email-preview__note {
+  color: var(--muted);
+}
+
+.proof-email-preview__footer {
+  padding: 13px 20px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .operation-row {
   display: grid;
   grid-template-columns: 1.1fr 1fr 1fr auto;

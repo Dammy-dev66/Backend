@@ -638,8 +638,20 @@
     const values = { clientName: "Jordan", serviceLevel: "Premium", wordCount: "1,250", deadline: "Friday, 2 October", price: "EUR 48.00", reference: "PRF-1064" };
     const interpolate = (value) => String(value || "").replace(/\{(\w+)\}/g, (_, key) => values[key] || "");
     const internal = kind === "reviewDocument" || kind === "reviewPasted";
-    const actionPreview = internal ? `<div class="email-preview__code">Client details<br><strong>Jordan · Premium · ${values.wordCount} words</strong></div><div class="preview-actions">${kind === "reviewDocument" && proofTemplateCtaInput.value.trim() ? `<button type="button">${escapeHtml(interpolate(proofTemplateCtaInput.value))}</button>` : ""}<button class="preview-secondary" type="button">Accept and charge</button></div>` : `<div class="email-preview__code">Request ${values.reference}<br><strong>${kind === "accepted" ? `Returned by ${values.deadline}` : "Nothing has been charged"}</strong></div>`;
-    proofEmailPreview.innerHTML = `<p class="eyebrow">${internal ? "Internal preview" : "Customer preview"}</p><h3>${escapeHtml(interpolate(proofTemplateHeadingInput.value))}</h3><p>${escapeHtml(interpolate(proofTemplateMessageInput.value))}</p>${actionPreview}<p class="email-preview__note">${escapeHtml(interpolate(proofTemplateNoteInput.value))}</p>`;
+    const template = {
+      heading: interpolate(proofTemplateHeadingInput.value),
+      message: interpolate(proofTemplateMessageInput.value),
+      ctaLabel: interpolate(proofTemplateCtaInput.value),
+      note: interpolate(proofTemplateNoteInput.value)
+    };
+    const requestRows = internal
+      ? `<tr><td>Client</td><td>Jordan Taylor</td></tr><tr><td>Email</td><td>jordan@example.com</td></tr><tr><td>Service level</td><td>${values.serviceLevel}</td></tr><tr><td>Word count</td><td>${values.wordCount} words</td></tr><tr><td>English preference</td><td>UK English</td></tr><tr><td>Deadline</td><td>${values.deadline}</td></tr><tr><td>Fee</td><td>${values.price}</td></tr><tr><td>Reference</td><td>${values.reference}</td></tr>`
+      : `<tr><td>Service level</td><td>${values.serviceLevel}</td></tr><tr><td>Word count</td><td>${values.wordCount} words</td></tr><tr><td>English preference</td><td>UK English</td></tr><tr><td>Reference</td><td>${values.reference}</td></tr>`;
+    const internalExtras = `${kind === "reviewDocument" && template.ctaLabel ? `<p class="proof-email-preview__button-row"><button type="button">${escapeHtml(template.ctaLabel)}</button></p>` : ""}<div class="proof-email-preview__submitted"><strong>${kind === "reviewDocument" ? "Editing instructions" : "Submitted text"}</strong><p>${kind === "reviewDocument" ? "Please preserve the writer's voice and return a polished academic edit." : "This is a sample of the pasted text Fin will review before deciding."}</p></div><div class="proof-email-preview__actions"><button class="proof-email-preview__accept" type="button">Accept and charge</button><button class="proof-email-preview__decline" type="button">Decline request</button></div>`;
+    const customerExtras = kind === "accepted"
+      ? `<div class="proof-email-preview__deadline"><strong>Your work will be returned by</strong><span>${values.deadline}</span></div><div class="proof-email-preview__receipt"><strong>Payment receipt</strong><span>Amount charged: ${values.price}<br>Reference: ${values.reference}</span></div>`
+      : `<div class="proof-email-preview__deadline"><strong>Payment status</strong><span>Nothing has been charged.</span></div>`;
+    proofEmailPreview.innerHTML = `<div class="proof-email-preview"><div class="proof-email-preview__header"><img src="/assets/finbar-horizontal-logo.png" alt="Finbar B. Elite Tutoring"><p>${internal ? "Proofreading review" : kind === "accepted" ? "Task accepted" : "Request update"}</p><h3>${escapeHtml(template.heading)}</h3></div><div class="proof-email-preview__body"><p class="proof-email-preview__greeting">${internal ? "Hi Fin," : "Hi Jordan,"}</p><p>${escapeHtml(template.message)}</p><table><tbody>${requestRows}</tbody></table>${internal ? internalExtras : customerExtras}<p class="proof-email-preview__note">${escapeHtml(template.note)}</p></div><div class="proof-email-preview__footer">Questions about this request? Reply directly to this email.</div></div>`;
   }
 
   async function loadProofreadingTemplates() {
