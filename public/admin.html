@@ -10,49 +10,46 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="page admin-page">
-    <header class="brand">
-      <a class="brand-logo-lockup" href="/" aria-label="Finbar B. Elite Tutoring">
-        <img class="brand-logo-full" src="/assets/finbar-horizontal-logo.png" alt="Finbar B. Elite Tutoring">
+  <div class="admin-workspace">
+    <aside class="dashboard-sidebar">
+      <a class="dashboard-brand" href="/" aria-label="Finbar B. Elite Tutoring home">
+        <img src="/assets/finbar-horizontal-logo.png" alt="Finbar B. Elite Tutoring">
       </a>
-    </header>
 
-    <main class="panel admin-panel">
-      <div class="admin-hero">
-        <div class="admin-hero-copy">
-          <p class="eyebrow">Booking dashboard</p>
-          <h1>Run the tutoring day from one clear place.</h1>
-          <p class="lede">See bookings, open a client record, manage appointment changes, and keep customer emails on-brand without hunting through separate systems.</p>
-        </div>
-        <div class="admin-guide">
-          <strong>How Fin uses this</strong>
-          <ol>
-            <li>Open Operations to check today and upcoming lessons.</li>
-            <li>Select a booking to see the client, package, and email history.</li>
-            <li>Use Booking Setup only when subjects or lesson mappings change.</li>
-          </ol>
-        </div>
-      </div>
+      <nav class="admin-tabs sidebar-nav" aria-label="Dashboard sections">
+        <p class="sidebar-nav__label">Workspace</p>
+        <button class="admin-tab active" data-tab="operations" data-title="Operations" data-kicker="Tutoring day" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--operations" aria-hidden="true"></span>Operations</button>
+        <button class="admin-tab" data-tab="pricing" data-title="Pricing" data-kicker="Customer checkout" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--pricing" aria-hidden="true"></span>Pricing</button>
 
-      <div class="admin-toolbar">
-        <input class="admin-key-input" id="adminKeyField" type="password" placeholder="Admin key" autocomplete="current-password">
-        <button class="btn-secondary" id="refreshBtn" type="button">Refresh</button>
-        <button class="btn-primary" id="saveBtn" type="button">Save dashboard</button>
-      </div>
+        <p class="sidebar-nav__label">Customer communication</p>
+        <button class="admin-tab" data-tab="templates" data-title="Tutoring emails" data-kicker="Customer communication" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--email" aria-hidden="true"></span>Email templates</button>
+        <button class="admin-tab" data-tab="proofreading-templates" data-title="Proofreading emails" data-kicker="Customer communication" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--proof" aria-hidden="true"></span>Proofreading emails</button>
 
-      <nav class="admin-tabs" aria-label="Dashboard sections">
-        <button class="admin-tab active" data-tab="operations" type="button">Operations</button>
-        <button class="admin-tab" data-tab="pricing" type="button">Pricing</button>
-        <button class="admin-tab" data-tab="templates" type="button">Email templates</button>
-        <button class="admin-tab" data-tab="proofreading-templates" type="button">Proofreading emails</button>
-        <button class="admin-tab" data-tab="subjects" type="button">Subjects</button>
-        <button class="admin-tab" data-tab="services" type="button">Lesson types</button>
-        <button class="admin-tab" data-tab="coupons" type="button">Coupons</button>
-        <div class="admin-tab-note">Operations is live. Booking setup changes the options customers can see.</div>
+        <p class="sidebar-nav__label">Booking setup</p>
+        <button class="admin-tab" data-tab="subjects" data-title="Subjects" data-kicker="Booking setup" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--subjects" aria-hidden="true"></span>Subjects</button>
+        <button class="admin-tab" data-tab="services" data-title="Lesson types" data-kicker="Booking setup" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--lessons" aria-hidden="true"></span>Lesson types</button>
+        <button class="admin-tab" data-tab="coupons" data-title="Coupons" data-kicker="Booking setup" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--coupons" aria-hidden="true"></span>Coupons</button>
       </nav>
+    </aside>
 
-      <p class="field-error hidden" id="adminError"></p>
-      <p class="field-hint" id="adminStatus"></p>
+    <main class="admin-panel">
+      <header class="dashboard-topbar">
+        <div>
+          <p class="dashboard-kicker" id="dashboardKicker">Tutoring day</p>
+          <h1 id="dashboardTitle">Operations</h1>
+        </div>
+        <div class="admin-toolbar">
+          <label class="dashboard-key"><span>Access key</span><input class="admin-key-input" id="adminKeyField" type="password" placeholder="Admin key" autocomplete="current-password"></label>
+          <button class="btn-secondary dashboard-refresh" id="refreshBtn" type="button">Refresh</button>
+          <button class="btn-primary hidden" id="saveBtn" type="button">Save changes</button>
+        </div>
+      </header>
+
+      <div class="dashboard-content">
+        <div class="dashboard-feedback" aria-live="polite">
+          <p class="field-error hidden" id="adminError"></p>
+          <p class="field-hint" id="adminStatus"></p>
+        </div>
 
       <section class="admin-tab-panel active" data-panel="operations">
         <div class="section-banner">
@@ -302,6 +299,7 @@
           </div>
         </div>
       </section>
+      </div>
     </main>
   </div>
   <script src="/admin.js"></script>

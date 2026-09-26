@@ -61,6 +61,8 @@
   const pricingReference = document.getElementById("pricingReference");
   const refreshPricingBtn = document.getElementById("refreshPricingBtn");
   const savePricingBtn = document.getElementById("savePricingBtn");
+  const dashboardTitle = document.getElementById("dashboardTitle");
+  const dashboardKicker = document.getElementById("dashboardKicker");
 
   const subjectNameInput = document.getElementById("subjectNameInput");
   const subjectSlugInput = document.getElementById("subjectSlugInput");
@@ -151,8 +153,14 @@
 
   function setTab(tab) {
     state.tab = tab;
+    const selectedTab = tabButtons.find((btn) => btn.dataset.tab === tab);
     tabButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
     tabPanels.forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== tab));
+    if (selectedTab) {
+      dashboardTitle.textContent = selectedTab.dataset.title || selectedTab.textContent.trim();
+      dashboardKicker.textContent = selectedTab.dataset.kicker || "Booking dashboard";
+    }
+    saveBtn.classList.toggle("hidden", !["subjects", "services", "coupons"].includes(tab));
     if (getAdminKey() && tab === "operations") loadOperations().catch((error) => showError(error.message));
     if (getAdminKey() && tab === "pricing") loadPricing().catch((error) => showError(error.message));
     if (getAdminKey() && tab === "templates") loadTemplates().catch((error) => showError(error.message));
