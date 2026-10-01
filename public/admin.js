@@ -8,7 +8,11 @@
   const PROOF_TEMPLATE_API = "/api/admin/coupons?resource=proofreading-templates";
   const PRICING_API = "/api/admin/coupons?resource=pricing";
 
-  const adminKeyInput = document.getElementById("adminKeyField");
+  if (!sessionStorage.getItem("finbarAdminKey")) {
+    window.location.replace("/admin-login.html");
+    return;
+  }
+
   const tabButtons = Array.from(document.querySelectorAll(".admin-tab"));
   const tabPanels = Array.from(document.querySelectorAll(".admin-tab-panel"));
   const subjectList = document.getElementById("subjectList");
@@ -18,6 +22,7 @@
   const adminError = document.getElementById("adminError");
   const adminStatus = document.getElementById("adminStatus");
   const refreshBtn = document.getElementById("refreshBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
   const addSubjectBtn = document.getElementById("addSubjectBtn");
   const addServiceBtn = document.getElementById("addServiceBtn");
   const addCouponBtn = document.getElementById("addCouponBtn");
@@ -125,7 +130,7 @@
   }
 
   function getAdminKey() {
-    return adminKeyInput.value.trim() || sessionStorage.getItem("finbarAdminKey") || "";
+    return sessionStorage.getItem("finbarAdminKey") || "";
   }
 
   function setAdminKey(value) {
@@ -446,7 +451,8 @@
   async function api(method, url, body) {
     const key = getAdminKey();
     if (!key) {
-      throw new Error("Enter the admin key first.");
+      window.location.replace("/admin-login.html");
+      throw new Error("Your dashboard session has ended.");
     }
 
     setAdminKey(key);
@@ -462,6 +468,10 @@
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
+      if (res.status === 401 || res.status === 403) {
+        sessionStorage.removeItem("finbarAdminKey");
+        window.location.replace("/admin-login.html?reason=expired");
+      }
       throw new Error(data.error || "Unable to save dashboard settings.");
     }
     return data;
@@ -803,6 +813,10 @@
   });
 
   refreshBtn.addEventListener("click", () => Promise.all([load(), loadOperations()]).catch((error) => showError(error.message)));
+  logoutBtn.addEventListener("click", () => {
+    sessionStorage.removeItem("finbarAdminKey");
+    window.location.replace("/admin-login.html");
+  });
 
   addSubjectBtn.addEventListener("click", () => {
     setTab("subjects");
@@ -1063,12 +1077,6 @@
     showStatus("Proofreading email template restored to the default wording.");
     renderProofreadingTemplates();
     fillProofreadingTemplateEditor();
-  });
-
-  adminKeyInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      Promise.all([load(), loadOperations()]).catch((error) => showError(error.message));
-    }
   });
 
   setTab("operations");

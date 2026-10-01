@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard sign in - Finbar B. Elite Tutoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="dashboard-login-page">
+  <main class="dashboard-login" aria-labelledby="loginTitle">
+    <section class="dashboard-login__intro">
+      <a class="dashboard-login__brand" href="/" aria-label="Finbar B. Elite Tutoring home">
+        <img src="/assets/finbar-horizontal-logo-aligned.png" alt="Finbar B. Elite Tutoring">
+      </a>
+      <p class="dashboard-login__kicker">Private workspace</p>
+      <h1 id="loginTitle">Welcome back, Fin.</h1>
+      <p>Sign in to manage bookings, customer communications, pricing, and lesson setup.</p>
+    </section>
+
+    <section class="dashboard-login__form-wrap" aria-label="Dashboard sign in">
+      <form class="dashboard-login__form" id="adminLoginForm">
+        <p class="dashboard-login__eyebrow">Dashboard access</p>
+        <h2>Enter your access code.</h2>
+        <p class="dashboard-login__message" id="loginMessage">Your code keeps this workspace private.</p>
+        <label class="dashboard-login__field" for="adminLoginKey">
+          <span>Access code</span>
+          <input id="adminLoginKey" name="accessCode" type="password" autocomplete="current-password" required autofocus>
+        </label>
+        <p class="dashboard-login__error hidden" id="loginError" role="alert"></p>
+        <button class="btn-primary dashboard-login__submit" id="loginSubmit" type="submit">Open dashboard</button>
+      </form>
+    </section>
+  </main>
+  <script src="/admin-login.js"></script>
+</body>
+</html>
