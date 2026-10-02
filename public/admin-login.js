@@ -25,7 +25,8 @@
     submit.disabled = true;
     submit.textContent = "Checking access...";
     try {
-      const response = await fetch("/api/admin/auth", {
+      // The existing dashboard API already validates the Fin-only admin key.
+      const response = await fetch("/api/admin/coupons", {
         headers: { "x-finbar-admin-key": key }
       });
       const data = await response.json().catch(() => ({}));
