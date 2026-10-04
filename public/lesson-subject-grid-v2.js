@@ -71,6 +71,11 @@
       tone: "fb-subject-card--pink",
       image: "https://finbar-site-preview.vercel.app/assets/tutor-call.png"
     },
+    "literary-classics": {
+      badge: "Literature",
+      tone: "fb-subject-card--pink",
+      image: "https://finbar-site-preview.vercel.app/assets/tutor-call.png"
+    },
     "essay-writing-college-apps": {
       badge: "Writing",
       tone: "fb-subject-card--mist",
@@ -99,6 +104,7 @@
   var closeBtn = overlay ? overlay.querySelector(".fb-book-modal-close") : null;
   var cancelBtn = overlay ? overlay.querySelector(".fb-book-modal-cancel") : null;
   var currentSubject = null;
+  var currentPricing = null;
   var refreshTimer = null;
   var isRendering = false;
 
@@ -153,6 +159,7 @@
       "ap english language & composition": "#ap-english-language",
       "ap psychology": "#ap-psychology",
       "english literature": "#english-literature",
+      "literary classics": "#english-literature",
       "essay writing": "#essay-writing",
       "elegant essays": "#elegant-essays"
     };
@@ -190,6 +197,46 @@
     track.innerHTML = subjects.map(buildSubjectCard).join("");
     track.scrollLeft = scrollLeft;
     isRendering = false;
+  }
+
+  function pricingTier(type) {
+    if (type === "six") return "pack6";
+    if (type === "twelve") return "pack12";
+    return type;
+  }
+
+  function pricingFormat(size) {
+    return size === "1:2" ? "oneToTwo" : "oneToOne";
+  }
+
+  function formatPrice(amount) {
+    var number = Number(amount);
+    return Number.isFinite(number) ? "EUR " + number.toFixed(2) : "Unavailable";
+  }
+
+  function updateModalOptions() {
+    if (!overlay) {
+      return;
+    }
+
+    var subjectLinks = currentSubject ? bookingLinks[currentSubject] || {} : {};
+    overlay.querySelectorAll(".fb-price-btn").forEach(function (btn) {
+      var type = btn.getAttribute("data-type");
+      var size = btn.getAttribute("data-size");
+      var amount = currentPricing && currentPricing.prices && currentPricing.prices[pricingFormat(size)]
+        ? currentPricing.prices[pricingFormat(size)][pricingTier(type)]
+        : null;
+      var hasBooking = Boolean(subjectLinks[type + ":" + size]);
+
+      if (amount !== null && amount !== undefined) {
+        btn.textContent = formatPrice(amount);
+      }
+
+      btn.disabled = !hasBooking;
+      btn.classList.toggle("is-unavailable", !hasBooking);
+      btn.setAttribute("aria-disabled", hasBooking ? "false" : "true");
+      btn.title = hasBooking ? "" : "This lesson option is not available for this subject yet.";
+    });
   }
 
   async function loadBookingConfig() {
@@ -230,8 +277,14 @@
           nextLinks[subject.name][tierKey(service.tier) + ":" + sizeKey(service.format)] = url.toString();
         });
 
+      var bookableSubjects = activeSubjects.filter(function (subject) {
+        return Object.keys(nextLinks[subject.name] || {}).length > 0;
+      });
+
       bookingLinks = nextLinks;
-      renderSubjects(activeSubjects);
+      currentPricing = data.pricing && data.pricing.prices ? data.pricing : null;
+      renderSubjects(bookableSubjects);
+      updateModalOptions();
       return true;
     } catch {
       bookingLinks = fallbackBookingLinks;
@@ -244,6 +297,7 @@
     if (subjectHeading) {
       subjectHeading.textContent = subject;
     }
+    updateModalOptions();
     overlay.classList.add("is-open");
   }
 
@@ -286,7 +340,7 @@
 
     overlay.querySelectorAll(".fb-price-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        if (!currentSubject) {
+        if (!currentSubject || btn.disabled) {
           return;
         }
         var type = btn.getAttribute("data-type");

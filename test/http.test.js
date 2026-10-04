@@ -1,7 +1,16 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { resolveBaseOrigin, resolvePublicOrigin } = require("../lib/http");
+const { corsHeaders, resolveBaseOrigin, resolvePublicOrigin } = require("../lib/http");
+
+test("corsHeaders allows the live Carrd site without opening CORS to other origins", () => {
+  const carrdHeaders = corsHeaders({ headers: { origin: "https://finbrady.carrd.co" } });
+  const otherHeaders = corsHeaders({ headers: { origin: "https://untrusted.example" } });
+
+  assert.equal(carrdHeaders["Access-Control-Allow-Origin"], "https://finbrady.carrd.co");
+  assert.equal(carrdHeaders["Access-Control-Allow-Methods"], "GET, POST, PUT, OPTIONS");
+  assert.equal(otherHeaders["Access-Control-Allow-Origin"], undefined);
+});
 
 test("resolveBaseOrigin prefers an allowed request origin", () => {
   const original = process.env.ALLOWED_ORIGINS;

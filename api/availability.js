@@ -1,17 +1,7 @@
+const { corsHeaders } = require("../lib/http");
+
 module.exports = async (req, res) => {
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-  const origin = req.headers.origin;
-
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Vary", "Origin");
+  Object.entries(corsHeaders(req)).forEach(([name, value]) => res.setHeader(name, value));
 
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "GET") {
