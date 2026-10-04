@@ -153,6 +153,17 @@
   }
 
   function courseInfoAnchor(subject) {
+    var stableAnchors = {
+      "ap-english-language-composition": "#ap-english-language",
+      "ap-psychology": "#ap-psychology",
+      "english-literature": "#english-literature",
+      "essay-writing-college-apps": "#essay-writing",
+      "elegant-essays": "#elegant-essays"
+    };
+    if (stableAnchors[subject.id]) {
+      return stableAnchors[subject.id];
+    }
+
     var name = String(subject.name || "").trim().toLowerCase();
     var anchors = {
       "ap english language": "#ap-english-language",
@@ -161,10 +172,12 @@
       "english literature": "#english-literature",
       "literary classics": "#english-literature",
       "essay writing": "#essay-writing",
+      "essay writing & college apps": "#essay-writing",
       "elegant essays": "#elegant-essays"
     };
 
-    return anchors[name] || "#" + subjectSlug(subject);
+    var candidate = "#" + subjectSlug(subject);
+    return anchors[name] || (document.getElementById(candidate.slice(1)) ? candidate : "");
   }
 
   function buildSubjectCard(subject, index) {
@@ -177,7 +190,7 @@
       '<p class="fb-subject-card__eyebrow">' + escapeHtml(meta.badge) + '</p>',
       '<h3>' + escapeHtml(subject.name) + '</h3>',
       '<div class="fb-subject-card__actions">',
-      '<a class="fb-subject-info-link" href="' + escapeHtml(courseInfoUrl) + '">Course info <span aria-hidden="true">↗</span></a>',
+      courseInfoUrl ? '<a class="fb-subject-info-link" href="' + escapeHtml(courseInfoUrl) + '">Course info <span aria-hidden="true">↗</span></a>' : "",
       '<button type="button" class="fb-book-link" data-subject="' + escapeHtml(subject.name) + '">Book now</button>',
       '</div>',
       '</div>',
@@ -261,7 +274,9 @@
       });
 
       data.services
-        .filter(function (service) { return service.active !== false; })
+        .filter(function (service) {
+          return service.active !== false && Boolean(service.appointmentTypeID || service.bookingLink);
+        })
         .forEach(function (service) {
           var subject = activeSubjects.find(function (item) { return item.id === service.subjectId; });
           if (!subject || !nextLinks[subject.name]) {
@@ -274,7 +289,8 @@
           url.searchParams.set("tier", service.tier);
           url.searchParams.set("source", "carrd");
 
-          nextLinks[subject.name][tierKey(service.tier) + ":" + sizeKey(service.format)] = url.toString();
+          nextLinks[subject.name][tierKey(service.tier) + ":" + sizeKey(service.format)] =
+            service.appointmentTypeID ? url.toString() : service.bookingLink;
         });
 
       var bookableSubjects = activeSubjects.filter(function (subject) {
@@ -287,7 +303,6 @@
       updateModalOptions();
       return true;
     } catch {
-      bookingLinks = fallbackBookingLinks;
       return false;
     }
   }
