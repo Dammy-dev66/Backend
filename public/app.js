@@ -282,9 +282,12 @@ function syncBackLinks() {
 }
 
 function populateSelectors() {
-  $("subjectSelect").innerHTML = CLASS_DATA.map((item, index) =>
-    `<option value="${index}">${item.name}</option>`
-  ).join("");
+  $("subjectSelect").innerHTML = CLASS_DATA.map((item, index) => {
+    const available = Object.values(item.options).some((options) =>
+      Object.values(options).some((value) => Boolean(Array.isArray(value) ? value[0] : value))
+    );
+    return `<option value="${index}"${available ? "" : " disabled"}>${item.name}${available ? "" : " (booking soon)"}</option>`;
+  }).join("");
   $("formatSelect").innerHTML = FORMATS.map((format) =>
     `<option value="${format.key}">${format.label}</option>`
   ).join("");
@@ -419,7 +422,7 @@ function updateChoiceUI() {
     ? "Pay"
     : "Select dates/times";
   $("continueChoiceBtn").disabled = !mappingReady;
-  $("step1Error").textContent = mappingReady ? "" : "This lesson type is not mapped to Acuity yet. Please update it in the dashboard first.";
+  $("step1Error").textContent = mappingReady ? "" : "This lesson option is not available yet. Please choose another subject or lesson option.";
 }
 
 function setPackageMode(mode) {
