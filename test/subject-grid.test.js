@@ -74,7 +74,7 @@ async function grid(config) {
   };
 }
 
-test("Carrd uses live prices and stable course links and excludes unconfigured options", async () => {
+test("Carrd shows active subjects with live prices and stable links, disabling unconfigured options", async () => {
   const config = {
     ok: true,
     subjects: [
@@ -93,7 +93,9 @@ test("Carrd uses live prices and stable course links and excludes unconfigured o
   const ui = await grid(config);
   assert.match(ui.track.innerHTML, /College Writing/);
   assert.match(ui.track.innerHTML, /href="#essay-writing"/);
-  assert.doesNotMatch(ui.track.innerHTML, /Unconfigured subject|Hidden subject/);
+  assert.match(ui.track.innerHTML, /data-subject="Unconfigured subject" disabled/);
+  assert.match(ui.track.innerHTML, /Booking soon/);
+  assert.doesNotMatch(ui.track.innerHTML, /Hidden subject|href="#new-subject"/);
 
   ui.open("College Writing");
   assert.equal(ui.buttons[0].textContent, "EUR 35.00");

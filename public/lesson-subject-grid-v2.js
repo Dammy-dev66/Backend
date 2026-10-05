@@ -183,6 +183,7 @@
   function buildSubjectCard(subject, index) {
     var meta = subjectMeta(subject, index);
     var courseInfoUrl = subject.courseInfoUrl || subject.infoUrl || courseInfoAnchor(subject);
+    var canBook = Object.keys(bookingLinks[subject.name] || {}).length > 0;
 
     return [
       '<article class="fb-subject-card ' + meta.tone + '">',
@@ -191,7 +192,9 @@
       '<h3>' + escapeHtml(subject.name) + '</h3>',
       '<div class="fb-subject-card__actions">',
       courseInfoUrl ? '<a class="fb-subject-info-link" href="' + escapeHtml(courseInfoUrl) + '">Course info <span aria-hidden="true">↗</span></a>' : "",
-      '<button type="button" class="fb-book-link" data-subject="' + escapeHtml(subject.name) + '">Book now</button>',
+      '<button type="button" class="fb-book-link" data-subject="' + escapeHtml(subject.name) + '"' +
+        (canBook ? "" : ' disabled aria-disabled="true" title="Lessons for this course are coming soon." style="opacity:0.65;cursor:not-allowed"') +
+        '>' + (canBook ? "Book now" : "Booking soon") + '</button>',
       '</div>',
       '</div>',
       '<img class="fb-subject-card__image" src="' + escapeHtml(meta.image) + '" alt="" loading="lazy">',
@@ -293,13 +296,9 @@
             service.appointmentTypeID ? url.toString() : service.bookingLink;
         });
 
-      var bookableSubjects = activeSubjects.filter(function (subject) {
-        return Object.keys(nextLinks[subject.name] || {}).length > 0;
-      });
-
       bookingLinks = nextLinks;
       currentPricing = data.pricing && data.pricing.prices ? data.pricing : null;
-      renderSubjects(bookableSubjects);
+      renderSubjects(activeSubjects);
       updateModalOptions();
       return true;
     } catch {
@@ -328,7 +327,7 @@
 
     track.addEventListener("click", function (event) {
       var btn = event.target.closest(".fb-book-link");
-      if (!btn) {
+      if (!btn || btn.disabled) {
         return;
       }
       openModal(btn.getAttribute("data-subject"));
