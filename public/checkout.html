@@ -29,6 +29,11 @@
       </label>
       <button class="btn-secondary" id="applyCouponBtn" type="button">Apply coupon</button>
       <div class="summary" id="priceSummary"></div>
+      <section class="policy-ack hidden" id="policyAcknowledgement" aria-labelledby="policyAcknowledgementTitle">
+        <h2 id="policyAcknowledgementTitle">Lesson policy</h2>
+        <p id="lessonPolicyText"></p>
+        <label class="checkbox-row policy-ack__check"><input id="lessonPolicyAccepted" type="checkbox"><span>I have read and agree to these lesson terms.</span></label>
+      </section>
       <p class="field-error hidden" id="checkoutError"></p>
 
       <button class="btn-primary btn-pay" id="paymentBtn" type="button">Pay</button>

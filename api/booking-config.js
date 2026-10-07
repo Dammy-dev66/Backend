@@ -9,26 +9,7 @@ const {
 } = require("../lib/booking-config");
 const { listPackageKeys, PACKAGE_LABELS, TIER_LABELS } = require("../lib/pricing");
 const { readPriceState } = require("../lib/price-config");
-
-function cleanString(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function requireAdminKey(req) {
-  const configured = cleanString(process.env.FINBAR_ADMIN_KEY);
-  if (!configured) {
-    const error = new Error("Admin access is not configured yet.");
-    error.statusCode = 503;
-    throw error;
-  }
-
-  const provided = cleanString(req.headers["x-finbar-admin-key"]);
-  if (!provided || provided !== configured) {
-    const error = new Error("Unauthorized.");
-    error.statusCode = 401;
-    throw error;
-  }
-}
+const { cleanString, requireAdminKey } = require("../lib/admin-auth");
 
 function buildPackageCatalog() {
   return listPackageKeys().map((key) => {
@@ -60,6 +41,7 @@ module.exports = async function handler(req, res) {
         services: listServiceCatalog(enrichedConfig),
         packageCatalog: buildPackageCatalog(),
         serviceMap: enrichedConfig.serviceMap,
+        revision: config._revision || "",
         pricing
       });
     }
@@ -71,6 +53,7 @@ module.exports = async function handler(req, res) {
       subjects: Array.isArray(body?.subjects) ? body.subjects : [],
       services: Array.isArray(body?.services) ? body.services : []
     });
+    config._revision = cleanString(body?.revision);
     const saved = await writeBookingConfig(config);
     const enriched = enrichBookingConfig(saved);
     return sendJson(req, res, 200, {
@@ -79,7 +62,8 @@ module.exports = async function handler(req, res) {
       subjects: listSubjectCatalog(enriched),
       services: listServiceCatalog(enriched),
       packageCatalog: buildPackageCatalog(),
-      serviceMap: enriched.serviceMap
+      serviceMap: enriched.serviceMap,
+      revision: saved._revision || ""
     });
   } catch (error) {
     return sendJson(req, res, error.statusCode || 500, {

@@ -1,7 +1,9 @@
 const { checkCertificate, resolvePackageCertificate } = require("../lib/acuity");
 const { handleOptions, readJson, sendJson } = require("../lib/http");
-const { getStripeClient } = require("../lib/stripe");
+const { getStripeClient, isSessionPaid } = require("../lib/stripe");
 const { isValidProfileToken } = require("../lib/package-profile");
+const { readLedger } = require("../lib/operations-ledger");
+const { packageExpiryAt } = require("../lib/package-expiry");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -13,7 +15,7 @@ async function resolveSavedProfile({ orderID, certificate, email, token }) {
 
   const session = await getStripeClient().checkout.sessions.retrieve(orderID);
   const metadata = session.metadata || {};
-  const paid = session.payment_status === "paid" || session.status === "complete";
+  const paid = isSessionPaid(session);
   if (!paid || cleanString(metadata.certificate) !== certificate || cleanString(metadata.email).toLowerCase() !== email.toLowerCase()) {
     return null;
   }
@@ -25,7 +27,9 @@ async function resolveSavedProfile({ orderID, certificate, email, token }) {
     phone: cleanString(metadata.phone),
     studentName: cleanString(metadata.studentName),
     studentName2: cleanString(metadata.studentName2),
-    notes: cleanString(metadata.notes)
+    notes: cleanString(metadata.notes),
+    purchasedAt: session.created ? new Date(session.created * 1000).toISOString() : "",
+    tier: cleanString(metadata.tier)
   };
 }
 
@@ -75,9 +79,14 @@ module.exports = async function handler(req, res) {
       token: cleanString(body.profileToken)
     });
 
+    const ledger = await readLedger();
+    const packageRecord = ledger.packages.find((item) => item.certificate === resolved.certificate && item.email === email.toLowerCase());
+    const expiresAt = packageExpiryAt(packageRecord || (profile?.purchasedAt ? { ...profile, linkedManually: false } : null))?.toISOString() || "";
+
     return sendJson(req, res, 200, {
       ok: true,
       packageValid: true,
+      expiresAt,
       certificate: {
         ...resolved.certificateStatus,
         code: resolved.certificate

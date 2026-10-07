@@ -1,12 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { Readable } = require("node:stream");
 const { requireAdminKey } = require("../lib/admin-auth");
 const { defaultTemplates, interpolateTemplate, normalizeTemplateState } = require("../lib/email-templates");
 const { defaultProofreadingTemplates, interpolateProofreadingTemplate, normalizeProofreadingTemplateState } = require("../lib/proofreading-email-templates");
-const { buildProofreadingEmail } = require("../lib/admin-dashboard-api");
+const { buildPricingServices, buildProofreadingEmail, handleDashboardResource } = require("../lib/admin-dashboard-api");
+const { defaultPriceState } = require("../lib/price-config");
 const { buildEmailHtml, sendNotificationEmails } = require("../lib/receipt-email");
 const { buildOperationsSummary, historyStart, normalizeAppointment } = require("../lib/operations");
-const { defaultLedger, recordAction, recordAppointment, recordReceipt, upsertPackage } = require("../lib/operations-ledger");
+const { defaultLedger, normalizeLedger, recordAction, recordAppointment, recordReceipt, upsertPackage } = require("../lib/operations-ledger");
+const { isSessionPaid } = require("../lib/stripe");
 
 test("admin operations require the configured Fin-only key", () => {
   const previous = process.env.FINBAR_ADMIN_KEY;
@@ -15,6 +18,52 @@ test("admin operations require the configured Fin-only key", () => {
   assert.doesNotThrow(() => requireAdminKey({ headers: { "x-finbar-admin-key": "correct-key" } }));
   if (previous === undefined) delete process.env.FINBAR_ADMIN_KEY;
   else process.env.FINBAR_ADMIN_KEY = previous;
+});
+
+test("pricing reconciliation keeps subject mappings and never treats a missing Acuity price as zero", () => {
+  const pricing = defaultPriceState();
+  pricing.subjectPrices.psychology = { oneToOne: { ...pricing.prices.oneToOne, single: 85 }, oneToTwo: { ...pricing.prices.oneToTwo } };
+  const config = { services: [
+    { id: "psych-single", subjectId: "psychology", subjectName: "AP Psychology", format: "oneToOne", tier: "single", appointmentTypeID: "101" },
+    { id: "english-single", subjectId: "english", subjectName: "English", format: "oneToOne", tier: "single", appointmentTypeID: "102" },
+    { id: "english-trial", subjectId: "english", subjectName: "English", format: "oneToOne", tier: "trial", appointmentTypeID: "103" }
+  ] };
+  const services = buildPricingServices(pricing, config, [
+    { id: 101, price: "80.00" },
+    { id: 102, price: String(pricing.prices.oneToOne.single) },
+    { id: 103, price: "" }
+  ]);
+  assert.equal(services[0].subjectId, "psychology");
+  assert.equal(services[0].websitePrice, 85);
+  assert.equal(services[0].matchesAcuity, false);
+  assert.equal(services[1].matchesAcuity, true);
+  assert.equal(services[2].acuityPrice, null);
+  assert.equal(services[2].matchesAcuity, null);
+});
+
+test("pricing admin endpoint rejects a blank subject price before writing", async () => {
+  const previousKey = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "pricing-test-key";
+  const pricing = defaultPriceState();
+  pricing.subjectPrices.psychology = JSON.parse(JSON.stringify(pricing.prices));
+  pricing.subjectPrices.psychology.oneToOne.single = "";
+  const req = Readable.from([Buffer.from(JSON.stringify(pricing))]);
+  req.method = "PUT";
+  req.headers = { "x-finbar-admin-key": "pricing-test-key" };
+  const res = {
+    statusCode: 0,
+    body: "",
+    writeHead(statusCode) { this.statusCode = statusCode; return this; },
+    end(body) { this.body = String(body || ""); return this; }
+  };
+  try {
+    await handleDashboardResource(req, res, "pricing");
+    assert.equal(res.statusCode, 400);
+    assert.match(JSON.parse(res.body).error, /psychology: oneToOne single/);
+  } finally {
+    if (previousKey === undefined) delete process.env.FINBAR_ADMIN_KEY;
+    else process.env.FINBAR_ADMIN_KEY = previousKey;
+  }
 });
 
 test("email templates retain safe defaults and interpolate only approved variables", () => {
@@ -72,6 +121,24 @@ test("ledger records package purchases, booking use, receipt sends, and dashboar
   assert.equal(ledger.stripeBackfillCursor, "");
 });
 
+test("ledger retains numeric Acuity IDs and the newest operational records", () => {
+  const ledger = defaultLedger();
+  upsertPackage(ledger, { email: "parent@example.com", certificate: "PKG-2", appointmentTypeID: 42, tier: "pack6" });
+  recordAppointment(ledger, { id: 42, email: "parent@example.com", status: "Scheduled" });
+  recordReceipt(ledger, { kind: "booking", email: "parent@example.com", appointmentID: 42, sent: true });
+  assert.equal(ledger.packages[0].appointmentTypeID, "42");
+  assert.equal(ledger.appointments[0].id, "42");
+  assert.equal(ledger.receipts[0].appointmentID, "42");
+
+  const newestFirst = Array.from({ length: 501 }, (_, index) => ({ id: `event-${500 - index}` }));
+  const normalized = normalizeLedger({ ...ledger, actions: newestFirst, stripeEvents: newestFirst, policySnapshots: newestFirst });
+  assert.equal(normalized.actions.length, 500);
+  assert.equal(normalized.actions[0].id, "event-500");
+  assert.equal(normalized.actions.at(-1).id, "event-1");
+  assert.equal(normalized.stripeEvents[0].id, "event-500");
+  assert.equal(normalized.policySnapshots[0].id, "event-500");
+});
+
 test("Stripe backfill checkpoints each page and completes without duplicate receipts", async () => {
   const apiPath = require.resolve("../lib/admin-dashboard-api");
   const stripePath = require.resolve("../lib/stripe");
@@ -79,11 +146,11 @@ test("Stripe backfill checkpoints each page and completes without duplicate rece
   const originalStripe = require.cache[stripePath];
   const calls = [];
   const pages = [
-    { has_more: true, data: [{ id: "cs_first", created: 1790000000, metadata: { email: "parent@example.com", certificate: "PKG-1", orderID: "ORDER-1", productID: "product-1", appointmentTypeID: "42" } }] },
-    { has_more: false, data: [{ id: "cs_second", created: 1790000001, metadata: { email: "parent@example.com", certificate: "PKG-2", orderID: "ORDER-2", productID: "product-2", appointmentTypeID: "42" } }] }
+    { has_more: true, data: [{ id: "cs_first", created: 1790000000, payment_status: "paid", metadata: { email: "parent@example.com", certificate: "PKG-1", orderID: "ORDER-1", productID: "product-1", appointmentTypeID: "42" } }] },
+    { has_more: false, data: [{ id: "cs_second", created: 1790000001, payment_status: "paid", metadata: { email: "parent@example.com", certificate: "PKG-2", orderID: "ORDER-2", productID: "product-2", appointmentTypeID: "42" } }] }
   ];
   delete require.cache[apiPath];
-  require.cache[stripePath] = { exports: { getStripeClient: () => ({ checkout: { sessions: { list: async (params) => { calls.push(params); return pages[calls.length - 1]; } } } }) } };
+  require.cache[stripePath] = { exports: { isSessionPaid, getStripeClient: () => ({ checkout: { sessions: { list: async (params) => { calls.push(params); return pages[calls.length - 1]; } } } }) } };
   try {
     const { backfillPackages } = require("../lib/admin-dashboard-api");
     const ledger = defaultLedger();
@@ -108,6 +175,8 @@ test("all dashboard email templates are delivered through the existing Make payl
   const calls = [];
   const originalFetch = global.fetch;
   const originalWebhook = process.env.MAKE_RECEIPT_WEBHOOK_URL;
+  const originalVercelEnv = process.env.VERCEL_ENV;
+  process.env.VERCEL_ENV = "production";
   process.env.MAKE_RECEIPT_WEBHOOK_URL = "https://make.example.test/hook";
   global.fetch = async (_url, options) => {
     calls.push(JSON.parse(options.body));
@@ -130,5 +199,6 @@ test("all dashboard email templates are delivered through the existing Make payl
   } finally {
     global.fetch = originalFetch;
     if (originalWebhook === undefined) delete process.env.MAKE_RECEIPT_WEBHOOK_URL; else process.env.MAKE_RECEIPT_WEBHOOK_URL = originalWebhook;
+    if (originalVercelEnv === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = originalVercelEnv;
   }
 });

@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Readable } = require("node:stream");
+const ledgerFunctions = require("../lib/operations-ledger");
 
 function makeResponse() {
   return {
@@ -18,23 +19,31 @@ function makeResponse() {
 }
 
 function loadHandlerWithStub(stub) {
-  const receiptPath = require.resolve("../lib/receipt-email");
-  const handlerPath = require.resolve("../api/webhooks/stripe");
-  delete require.cache[receiptPath];
-  delete require.cache[handlerPath];
-  require.cache[receiptPath] = { exports: stub };
-  return require("../api/webhooks/stripe");
+  return loadHandlerWithStubs({
+    receiptStub: stub,
+    acuityStub: {
+      createCertificate: async () => ({ id: "CERT-1" }),
+      extractCertificateCode: () => "CERT-1"
+    }
+  });
 }
 
-function loadHandlerWithStubs({ receiptStub, acuityStub }) {
+function loadHandlerWithStubs({ receiptStub, acuityStub, ledger = ledgerFunctions.defaultLedger() }) {
   const receiptPath = require.resolve("../lib/receipt-email");
   const acuityPath = require.resolve("../lib/acuity");
+  const ledgerPath = require.resolve("../lib/operations-ledger");
   const handlerPath = require.resolve("../api/webhooks/stripe");
   delete require.cache[receiptPath];
   delete require.cache[acuityPath];
+  delete require.cache[ledgerPath];
   delete require.cache[handlerPath];
   require.cache[receiptPath] = { exports: receiptStub };
-  require.cache[acuityPath] = { exports: acuityStub };
+  require.cache[acuityPath] = { exports: { hasAcuityCredentials: () => true, ...acuityStub } };
+  require.cache[ledgerPath] = { exports: {
+    ...ledgerFunctions,
+    readLedger: async () => ledger,
+    updateLedger: async (mutator) => { await mutator(ledger); return ledger; }
+  } };
   return require("../api/webhooks/stripe");
 }
 
@@ -53,6 +62,8 @@ test("stripe webhook sends the package receipt after checkout completion", async
     data: {
       object: {
         id: "cs_test_123",
+        created: Math.floor(Date.now() / 1000),
+        payment_status: "paid",
         amount_total: 26400,
         customer_details: {
           email: "student@example.com",
@@ -91,11 +102,63 @@ test("stripe webhook sends the package receipt after checkout completion", async
   assert.equal(calls[0].productID, "2253280");
   assert.equal(calls[0].orderID, "ORDER-9");
   assert.equal(calls[0].recipientName, "Joshua");
+
+  const retry = Readable.from([Buffer.from(JSON.stringify(event))]);
+  retry.method = "POST";
+  retry.headers = {};
+  const retryResponse = makeResponse();
+  await handler(retry, retryResponse);
+  assert.equal(retryResponse.statusCode, 200);
+  assert.equal(JSON.parse(retryResponse.body).duplicate, true);
+  assert.equal(calls.length, 1);
+});
+
+test("failed paid fulfillment remains unacknowledged without repeating the Acuity side effect", async () => {
+  let certificateCalls = 0;
+  const ledger = ledgerFunctions.defaultLedger();
+  const handler = loadHandlerWithStubs({
+    ledger,
+    receiptStub: { sendPackageReceiptEmails: async () => { throw new Error("Receipt should not be sent."); } },
+    acuityStub: {
+      createCertificate: async () => {
+        certificateCalls += 1;
+        throw new Error("Acuity unavailable");
+      },
+      extractCertificateCode: () => ""
+    }
+  });
+  const event = {
+    id: "evt_failed",
+    type: "checkout.session.completed",
+    data: { object: {
+      id: "cs_test_failed",
+      created: Math.floor(Date.now() / 1000),
+      payment_status: "paid",
+      amount_total: 26400,
+      metadata: { email: "student@example.com", productID: "2253280", appointmentTypeID: "95402039" }
+    } }
+  };
+  const deliver = async () => {
+    const req = Readable.from([Buffer.from(JSON.stringify(event))]);
+    req.method = "POST";
+    req.headers = {};
+    const res = makeResponse();
+    await handler(req, res);
+    return res;
+  };
+  const first = await deliver();
+  assert.equal(first.statusCode, 500);
+  assert.equal(ledger.stripeEvents[0].status, "failed");
+  const retry = await deliver();
+  assert.equal(retry.statusCode, 503);
+  assert.equal(JSON.parse(retry.body).reconciliationRequired, true);
+  assert.equal(certificateCalls, 1);
 });
 
 test("stripe webhook creates the appointment and sends the booking confirmation for direct bookings", async () => {
   const appointmentCalls = [];
   const receiptCalls = [];
+  const lessonTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const originalUserId = process.env.ACUITY_USER_ID;
   const originalApiKey = process.env.ACUITY_API_KEY;
   process.env.ACUITY_USER_ID = "123";
@@ -126,6 +189,8 @@ test("stripe webhook creates the appointment and sends the booking confirmation 
     data: {
       object: {
         id: "cs_test_456",
+        created: Math.floor(Date.now() / 1000),
+        payment_status: "paid",
         amount_total: 5000,
         customer_details: {
           email: "student@example.com",
@@ -140,7 +205,7 @@ test("stripe webhook creates the appointment and sends the booking confirmation 
           firstName: "Jane",
           lastName: "Parent",
           phone: "+353123456",
-          datetime: "2026-09-01T14:00:00+01:00",
+          datetime: lessonTime,
           calendarID: "14289294",
           studentName: "Student Name",
           studentName2: "Second Student",

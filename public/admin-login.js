@@ -32,6 +32,7 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) throw new Error(data.error || "We could not verify that code.");
       sessionStorage.setItem("finbarAdminKey", key);
+      sessionStorage.setItem("finbarAdminLastActivity", String(Date.now()));
       window.location.replace("/admin.html");
     } catch (requestError) {
       error.textContent = requestError.message === "Unauthorized." ? "That access code is not recognised. Please try again." : requestError.message;

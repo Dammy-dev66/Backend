@@ -6,6 +6,7 @@ const {
   buildReceiptPayload,
   buildReceiptSubject,
   buildSessionsLink,
+  buildBookingConfirmationPayload,
   sendBookingConfirmationEmails
 } = require("../lib/receipt-email");
 
@@ -111,6 +112,33 @@ test("two-student receipt payload includes both student names for Make", () => {
   assert.doesNotMatch(payload.html, /Ben Example/);
 });
 
+test("package redemption confirmation shows the lesson without inventing a new payment", () => {
+  const payload = buildBookingConfirmationPayload({
+    customerEmail: "student@example.com",
+    subject: "AP Psychology",
+    format: "oneToOne",
+    tier: "pack6",
+    appointmentTypeID: "95402039",
+    certificate: "CERT-123"
+  });
+
+  assert.match(payload.html, /AP Psychology/);
+  assert.match(payload.html, /CERT-123/);
+  assert.doesNotMatch(payload.html, /Total:/);
+  assert.doesNotMatch(payload.text, /Total:/);
+  assert.doesNotMatch(payload.finHtml, /Total:/);
+  assert.equal(payload.receipt.totalPrice, undefined);
+
+  const paid = buildBookingConfirmationPayload({
+    customerEmail: "student@example.com",
+    subject: "AP Psychology",
+    format: "oneToOne",
+    tier: "single",
+    totalPrice: 70
+  });
+  assert.match(paid.html, /Total: EUR 70\.00/);
+});
+
 test("receipt payload defaults Fin's copy address when production configuration is empty", () => {
   const payload = buildReceiptPayload({
     customerEmail: "student@example.com",
@@ -125,6 +153,8 @@ test("receipt payload defaults Fin's copy address when production configuration 
 
 test("booking confirmation falls back to the Make webhook when the env var is missing", async () => {
   const originalWebhook = process.env.MAKE_RECEIPT_WEBHOOK_URL;
+  const originalVercelEnv = process.env.VERCEL_ENV;
+  process.env.VERCEL_ENV = "production";
   delete process.env.MAKE_RECEIPT_WEBHOOK_URL;
 
   const calls = [];
@@ -152,7 +182,9 @@ test("booking confirmation falls back to the Make webhook when the env var is mi
 
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, "https://hook.eu1.make.com/er8khojd5b8ctfxezo79282sqykj9iqh");
-    assert.equal(result.sent, true);
+    assert.equal(result.sent, false);
+    assert.equal(result.accepted, true);
+    assert.equal(result.deliveryStatus, "accepted");
     assert.equal(result.provider, "make");
   } finally {
     global.fetch = originalFetch;
@@ -161,5 +193,7 @@ test("booking confirmation falls back to the Make webhook when the env var is mi
     } else {
       process.env.MAKE_RECEIPT_WEBHOOK_URL = originalWebhook;
     }
+    if (originalVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = originalVercelEnv;
   }
 });

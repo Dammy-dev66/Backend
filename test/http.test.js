@@ -1,7 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { Readable } = require("node:stream");
 
-const { corsHeaders, resolveBaseOrigin, resolvePublicOrigin } = require("../lib/http");
+const { corsHeaders, readJson, resolveBaseOrigin, resolvePublicOrigin } = require("../lib/http");
+
+test("readJson enforces a byte limit even without Content-Length", async () => {
+  const tooLarge = Readable.from([Buffer.from('{"a":'), Buffer.from('"123456"}')]);
+  await assert.rejects(readJson(tooLarge, { maxBytes: 10 }), (error) => error.statusCode === 413);
+  const allowed = Readable.from([Buffer.from('{"a":'), Buffer.from('1}')]);
+  assert.deepEqual(await readJson(allowed, { maxBytes: 7 }), { a: 1 });
+});
 
 test("corsHeaders allows the live Carrd site without opening CORS to other origins", () => {
   const carrdHeaders = corsHeaders({ headers: { origin: "https://finbrady.carrd.co" } });

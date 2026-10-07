@@ -29,6 +29,9 @@
         <button class="admin-tab" data-tab="subjects" data-title="Subjects" data-kicker="Booking setup" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--subjects" aria-hidden="true"></span>Subjects</button>
         <button class="admin-tab" data-tab="services" data-title="Lesson types" data-kicker="Booking setup" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--lessons" aria-hidden="true"></span>Lesson types</button>
         <button class="admin-tab" data-tab="coupons" data-title="Coupons" data-kicker="Booking setup" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--coupons" aria-hidden="true"></span>Coupons</button>
+
+        <p class="sidebar-nav__label">Data and safety</p>
+        <button class="admin-tab" data-tab="backup" data-title="Backups" data-kicker="Data and safety" type="button"><span class="sidebar-nav__mark sidebar-nav__mark--coupons" aria-hidden="true"></span>Backups</button>
       </nav>
     </aside>
 
@@ -51,11 +54,33 @@
           <p class="field-hint" id="adminStatus"></p>
         </div>
 
+      <section class="admin-tab-panel hidden" data-panel="backup">
+        <div class="section-banner"><div><h2>Back up and restore</h2><p>Keep a secure copy of the dashboard settings and customer operations records.</p></div></div>
+        <div class="backup-layout">
+          <section class="backup-pane">
+            <p class="dashboard-kicker">Download</p>
+            <h3>Save a backup file</h3>
+            <p>The file includes subjects, lesson mappings, prices, coupons, email wording, package records, appointments, receipts, and action history. It contains private customer information.</p>
+            <button class="btn-primary" id="backupDownloadBtn" type="button">Download backup</button>
+          </section>
+          <section class="backup-pane">
+            <p class="dashboard-kicker">Restore</p>
+            <h3>Restore one section</h3>
+            <p>Choose a backup file and one section. Restoring replaces that section's current data. Download a fresh backup first.</p>
+            <label class="field"><span>Backup file</span><input id="backupRestoreFile" type="file" accept="application/json,.json"></label>
+            <label class="field"><span>Section to restore</span><select id="backupRestoreSection"><option value="booking">Subjects and lesson mappings</option><option value="pricing">Prices and popup wording</option><option value="coupons">Coupons</option><option value="tutoringEmails">Tutoring email wording</option><option value="proofreadingEmails">Proofreading email wording</option><option value="operations">Customer, booking, and payment records</option></select></label>
+            <p class="field-hint">A restore changes only the selected section. It does not restore Carrd pages, Make scenarios, account credentials, or hosting settings.</p>
+            <button class="btn-danger" id="backupRestoreBtn" type="button" disabled>Restore selected section</button>
+          </section>
+        </div>
+      </section>
+
       <section class="admin-tab-panel active" data-panel="operations">
         <div class="section-banner">
           <div><h2>Operations</h2><p>Today, upcoming lessons, the last 90 days of history, and the actions that need your attention.</p></div>
           <div class="section-actions"><input id="operationSearchInput" class="section-search" type="search" placeholder="Search client, email, or lesson"><button class="btn-secondary" id="refreshOperationsBtn" type="button">Refresh bookings</button></div>
         </div>
+        <div class="fulfillment-alert hidden" id="fulfillmentIssues" role="status"></div>
         <div class="operations-summary" id="operationsSummary"></div>
         <div class="operations-layout">
           <div class="operations-list-wrap"><div class="operations-list" id="operationsList"></div></div>
@@ -68,8 +93,17 @@
         <div class="pricing-layout">
           <div class="record-editor">
             <div class="record-editor-head"><strong>Website and Stripe prices</strong><span class="status-pill">EUR</span></div>
-            <p class="editor-note">Enter the amount a customer should pay for each lesson format and package. Coupon discounts are applied after these prices.</p>
+            <p class="editor-note">Set shared defaults, then choose a subject to add its own prices. Coupon discounts are applied after these prices.</p>
+            <label class="field"><span>Prices for</span><select id="priceSubjectSelect"><option value="">Shared defaults</option></select></label>
+            <label class="package-check" id="priceUseDefaultWrap"><input id="priceUseDefaultInput" type="checkbox"><span>Use shared default prices for this subject</span></label>
             <div class="price-editor-grid" id="priceEditorGrid"></div>
+            <div class="record-editor-head pricing-copy-head"><strong>Booking popup</strong><span class="status-pill">Website copy</span></div>
+            <label class="field"><span>Popup introduction</span><input id="popupHeadingInput" type="text" maxlength="140"></label>
+            <label class="field"><span>Six-class package note</span><input id="popupPack6Input" type="text" maxlength="120" placeholder="Optional, e.g. Save 15%"></label>
+            <label class="field"><span>Twelve-class package note</span><input id="popupPack12Input" type="text" maxlength="120" placeholder="Optional, e.g. Save 20%"></label>
+            <label class="field"><span>Booking policy text</span><textarea id="popupPolicyInput" rows="4" maxlength="1400" placeholder="Only publish wording Fin has approved and the booking rules support."></textarea></label>
+            <p class="editor-note">Do not publish the 50% refund promise yet. Refund handling and package-credit rules still need approval and implementation.</p>
+            <p class="editor-note">Package savings are calculated from the subject's single-lesson price. Notes are additional wording and do not change the amount charged.</p>
           </div>
           <aside class="pricing-reference" id="pricingReference"></aside>
         </div>

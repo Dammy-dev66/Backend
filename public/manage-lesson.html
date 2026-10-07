@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Manage your lesson | Finbar B.</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .manage-shell{max-width:760px;margin:0 auto;padding:56px 20px 80px}
+    .manage-card{border:1px solid #d8d1c4;background:#fffdf8;padding:clamp(22px,5vw,42px)}
+    .manage-card h1{margin:6px 0 12px;color:#142640;font:400 clamp(34px,6vw,54px)/1.04 Georgia,serif}
+    .manage-card p{color:#53637a;line-height:1.65}
+    .manage-meta{display:grid;gap:8px;margin:24px 0;padding:18px 0;border-top:1px solid #d8d1c4;border-bottom:1px solid #d8d1c4}
+    .manage-label{color:#0a3d91;font-size:11px;font-weight:800;text-transform:uppercase}
+    .manage-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+    .manage-actions button,.manage-panel button{min-height:44px;padding:0 18px;border:1px solid #0a3d91;background:#0a3d91;color:#fff;font:700 11px Arial,sans-serif;text-transform:uppercase;letter-spacing:.08em;cursor:pointer}
+    .manage-actions button.secondary{background:transparent;color:#0a3d91}
+    .manage-actions button:disabled{opacity:.45;cursor:not-allowed}
+    .manage-panel{display:grid;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid #d8d1c4}
+    .manage-panel input,.manage-panel select{min-height:44px;padding:8px 10px;border:1px solid #c9c4bb;background:#fff;color:#142640;font:14px Arial,sans-serif}
+    .manage-notice{padding:14px;border-left:3px solid #dda31d;background:#f7f2e9;color:#142640!important}
+    .manage-error{color:#a23220!important}
+    .manage-status{min-height:22px;font-size:13px}
+    @media(max-width:520px){.manage-shell{padding:26px 14px 48px}.manage-actions{display:grid}.manage-actions button{width:100%}}
+  </style>
+</head>
+<body>
+  <main class="manage-shell">
+    <section class="manage-card" aria-labelledby="manageTitle">
+      <p class="manage-label">Your booking</p>
+      <h1 id="manageTitle">Manage your lesson</h1>
+      <p id="manageIntro">Loading your appointment details...</p>
+      <div class="manage-meta" id="manageMeta" aria-live="polite"></div>
+      <p id="managePolicy" class="manage-notice hidden"></p>
+      <div class="manage-actions">
+        <button type="button" id="changeLessonBtn" class="secondary">Choose another time</button>
+        <button type="button" id="cancelLessonBtn" class="secondary">Cancel lesson</button>
+      </div>
+      <section class="manage-panel hidden" id="reschedulePanel">
+        <label class="manage-label" for="rescheduleDate">Choose a new date</label>
+        <input id="rescheduleDate" type="date">
+        <button type="button" id="showTimesBtn">Show available times</button>
+        <label class="manage-label hidden" id="timeLabel" for="rescheduleTime">Available times</label>
+        <select id="rescheduleTime" class="hidden"></select>
+        <button type="button" id="confirmRescheduleBtn" class="hidden">Confirm new time</button>
+      </section>
+      <p id="manageStatus" class="manage-status" role="status"></p>
+    </section>
+  </main>
+  <script src="/manage-lesson.js" defer></script>
+</body>
+</html>

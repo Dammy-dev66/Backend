@@ -16,7 +16,7 @@ test("default booking config contains the current subject and lesson map", () =>
 
   const index = buildSelectionIndex(config);
   assert.ok(index["AP Psychology:oneToOne:trial"]);
-  assert.equal(index["English Literature:oneToTwo:pack12"].productID, "2260533");
+  assert.equal(index["Literary Classics:oneToTwo:pack12"].productID, "2260533");
 });
 
 test("booking config lookup resolves a subject-specific lesson mapping", () => {

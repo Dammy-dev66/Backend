@@ -18,7 +18,7 @@ const DEFAULT_CLASS_DATA = [
     oneToOne: { trial: 96938198, single: 96938134, pack6: [96938268, 2260524], pack12: [96938304, 2260525] },
     oneToTwo: { trial: 96938230, single: 96938155, pack6: [96938331, 2260526], pack12: [96938344, 2260528] }
   }),
-  subject("English Literature", {
+  subject("Literary Classics", {
     oneToOne: { trial: 96938820, single: 96938767, pack6: [96938876, 2260529], pack12: [96938892, 2260531] },
     oneToTwo: { trial: 96938841, single: 96938789, pack6: [96938926, 2260532], pack12: [96938972, 2260533] }
   }),
@@ -28,6 +28,7 @@ const DEFAULT_CLASS_DATA = [
   })
 ];
 let CLASS_DATA = DEFAULT_CLASS_DATA.slice();
+let PRICING_STATE = null;
 
 const DEFAULT_FORMATS = [
   { key: "oneToOne", label: "Tutor + one student", price: { trial: 25, single: 50, pack6: 264, pack12: 456 } },
@@ -57,6 +58,7 @@ const state = {
   returnOrderID: "",
   profileToken: "",
   savedDetails: null,
+  packageExpiresAt: "",
   remaining: 1,
   selected: [],
   scheduleData: [],
@@ -64,8 +66,9 @@ const state = {
   activeDate: null
 };
 
-function subject(name, options) {
-  return { name, options };
+function subject(name, options, id = "") {
+  const stableId = id || String(name || "subject").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return { id: stableId, name, options };
 }
 
 function safeId(value) {
@@ -109,7 +112,7 @@ function convertBookingConfigToClassData(config) {
         }
       });
 
-      return subject(item.name, options);
+      return subject(item.name, options, item.id);
     });
 }
 
@@ -119,12 +122,7 @@ async function loadBookingConfig() {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok && Array.isArray(data.subjects) && Array.isArray(data.services)) {
       CLASS_DATA = convertBookingConfigToClassData(data);
-      if (data.pricing?.prices) {
-        FORMATS = DEFAULT_FORMATS.map((format) => ({
-          ...format,
-          price: { ...format.price, ...(data.pricing.prices[format.key] || {}) }
-        }));
-      }
+      PRICING_STATE = data.pricing || null;
     }
   } catch {
     CLASS_DATA = DEFAULT_CLASS_DATA.slice();
@@ -136,12 +134,33 @@ function $(id) {
   return document.getElementById(id);
 }
 
+function safeWebUrl(value) {
+  try {
+    const url = new URL(String(value || ""), location.origin);
+    return url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(location.hostname))
+      ? url.toString()
+      : "";
+  } catch {
+    return "";
+  }
+}
+
 function selectedSubject() {
   return CLASS_DATA[state.subjectIndex];
 }
 
 function selectedFormat() {
   return FORMATS.find((format) => format.key === state.formatKey);
+}
+
+function selectedPrice() {
+  const subject = selectedSubject();
+  const format = selectedFormat();
+  const tier = state.tierKey;
+  const value = (subject?.id && PRICING_STATE?.subjectPrices?.[subject.id]?.[state.formatKey]?.[tier]) ??
+    PRICING_STATE?.prices?.[state.formatKey]?.[tier] ??
+    format?.price?.[tier];
+  return Number.isFinite(Number(value)) ? Number(value) : null;
 }
 
 function selectedTier() {
@@ -240,6 +259,7 @@ async function resolvePackageEntitlement({ email, certificate, orderID, productI
   return {
     certificate: data.certificate?.code || data.certificate?.certificate || data.certificate?.packageCode || data.certificate,
     remaining,
+    expiresAt: data.expiresAt || "",
     profile: data.profile || null
   };
 }
@@ -271,8 +291,9 @@ function syncBackLinks() {
     return;
   }
 
-  if (state.backUrl) {
-    backLink.href = state.backUrl;
+  const backUrl = safeWebUrl(state.backUrl);
+  if (backUrl) {
+    backLink.href = backUrl;
     backLink.classList.remove("hidden");
     bridge.classList.remove("hidden");
   } else {
@@ -282,22 +303,22 @@ function syncBackLinks() {
 }
 
 function populateSelectors() {
-  $("subjectSelect").innerHTML = CLASS_DATA.map((item, index) => {
+  const subjectSelect = $("subjectSelect");
+  subjectSelect.replaceChildren(...CLASS_DATA.map((item, index) => {
     const available = Object.values(item.options).some((options) =>
       Object.values(options).some((value) => Boolean(Array.isArray(value) ? value[0] : value))
     );
-    return `<option value="${index}"${available ? "" : " disabled"}>${item.name}${available ? "" : " (booking soon)"}</option>`;
-  }).join("");
-  $("formatSelect").innerHTML = FORMATS.map((format) =>
-    `<option value="${format.key}">${format.label}</option>`
-  ).join("");
-  $("tierSelect").innerHTML = TIERS.map((tier) =>
-    `<option value="${tier.key}">${tier.label}</option>`
-  ).join("");
+    const option = new Option(`${item.name}${available ? "" : " (booking soon)"}`, String(index));
+    option.disabled = !available;
+    return option;
+  }));
+  $("formatSelect").replaceChildren(...FORMATS.map((format) => new Option(format.label, format.key)));
+  $("tierSelect").replaceChildren(...TIERS.map((tier) => new Option(tier.label, tier.key)));
 
   const params = new URLSearchParams(location.search);
   const saved = savedSelection();
   const subjectName = params.get("subject") || saved.subject;
+  const subjectId = params.get("subjectId") || saved.subjectId || "";
   const formatKey = params.get("format") || saved.format;
   const tierKey = params.get("tier") || saved.tier;
   const appointmentTypeID = Number(params.get("appointmentTypeID") || saved.appointmentTypeID);
@@ -317,9 +338,9 @@ function populateSelectors() {
   state.returnOrderID = orderID;
   state.profileToken = profileToken;
   state.productID = productID || state.productID;
-  state.backUrl = backUrl;
-  if (backUrl) {
-    localStorage.setItem("finbarBackUrl", backUrl);
+  state.backUrl = safeWebUrl(backUrl);
+  if (state.backUrl) {
+    localStorage.setItem("finbarBackUrl", state.backUrl);
   }
 
   const returnTarget = localStorage.getItem("finbarReturnTarget");
@@ -327,8 +348,8 @@ function populateSelectors() {
     handleReturnTarget(returnTarget);
   }
 
-  if (subjectName) {
-    const index = CLASS_DATA.findIndex((item) => item.name === subjectName);
+  if (subjectId || subjectName) {
+    const index = CLASS_DATA.findIndex((item) => (subjectId && item.id === subjectId) || item.name === subjectName);
     if (index >= 0) state.subjectIndex = index;
   }
   if (FORMATS.some((format) => format.key === formatKey)) state.formatKey = formatKey;
@@ -402,8 +423,12 @@ function updateChoiceUI() {
 
   const tier = selectedTier();
   const format = selectedFormat();
-  const price = format.price[tier.key];
-  $("choiceSummary").innerHTML = `<strong>${selectedSubject().name}</strong><br>${format.label} - ${tier.label} - ${money(price)}`;
+  const price = selectedPrice();
+  const choiceSummary = $("choiceSummary");
+  choiceSummary.replaceChildren();
+  const subjectName = document.createElement("strong");
+  subjectName.textContent = selectedSubject().name;
+  choiceSummary.append(subjectName, document.createElement("br"), document.createTextNode(`${format.label} - ${tier.label} - ${price === null ? "Price unavailable" : money(price)}`));
   $("packageChoice").classList.toggle("hidden", !tier.needsPackage);
   $("certificateFields").classList.toggle("hidden", !tier.needsPackage);
   if (tier.needsPackage) {
@@ -421,8 +446,10 @@ function updateChoiceUI() {
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
     ? "Pay"
     : "Select dates/times";
-  $("continueChoiceBtn").disabled = !mappingReady;
-  $("step1Error").textContent = mappingReady ? "" : "This lesson option is not available yet. Please choose another subject or lesson option.";
+  $("continueChoiceBtn").disabled = !mappingReady || price === null;
+  $("step1Error").textContent = !mappingReady
+    ? "This lesson option is not available yet. Please choose another subject or lesson option."
+    : price === null ? "The price for this lesson is not configured yet. Please contact Finbar." : "";
 }
 
 function setPackageMode(mode) {
@@ -437,6 +464,7 @@ async function checkoutBridgeUrl(details = {}) {
     method: "POST",
     body: JSON.stringify({
       subject: selectedSubject().name,
+      subjectId: selectedSubject().id,
       format: state.formatKey,
       tier: state.tierKey,
       appointmentTypeID: String(state.appointmentTypeID),
@@ -491,6 +519,7 @@ async function resumeReturnedPackage() {
     state.certificate = resolved.certificate;
     state.packageCode = resolved.certificate;
     state.remaining = resolved.remaining || selectedTier().sessions || 1;
+    state.packageExpiresAt = resolved.expiresAt || "";
     applySavedDetails(resolved.profile);
     $("email").value = email;
     $("bookingTitle").textContent = `${selectedSubject().name} - ${selectedFormat().label}`;
@@ -523,6 +552,7 @@ async function continueFromChoice() {
       return;
     }
     sessionStorage.setItem("finbarReturnSelection", JSON.stringify({
+      subjectId: selectedSubject().id,
       subject: selectedSubject().name,
       format: state.formatKey,
       tier: state.tierKey,
@@ -563,6 +593,7 @@ async function continueFromChoice() {
       });
       state.certificate = resolved.certificate;
       state.remaining = resolved.remaining || selectedTier().sessions || 1;
+      state.packageExpiresAt = resolved.expiresAt || "";
     } catch (error) {
       $("step1Error").textContent = error.message;
       $("continueChoiceBtn").disabled = false;
@@ -589,6 +620,11 @@ async function loadMonth({ autoAdvance = false } = {}) {
 
   while (attempt < maxAttempts) {
     const monthToLoad = new Date(state.currentMonth);
+    if (selectedTier().needsPackage && state.packageExpiresAt &&
+      new Date(monthToLoad.getFullYear(), monthToLoad.getMonth(), 1) > new Date(state.packageExpiresAt)) {
+      grid.innerHTML = `<p class="muted">This package expires on ${new Date(state.packageExpiresAt).toLocaleDateString()}. Choose a time before then or contact Finbar.</p>`;
+      return;
+    }
     $("monthLabel").textContent = monthToLoad.toLocaleString("en-US", { month: "long", year: "numeric" });
     grid.innerHTML = `<p class="muted">Loading available times...</p>`;
 
@@ -616,6 +652,12 @@ async function loadMonth({ autoAdvance = false } = {}) {
       };
     }));
 
+    if (selectedTier().needsPackage && state.packageExpiresAt) {
+      schedule.forEach((item) => {
+        item.times = item.times.filter((timeItem) => new Date(timeItem.time).getTime() <= new Date(state.packageExpiresAt).getTime());
+      });
+    }
+
     const hasAnyTimes = schedule.some((item) => Array.isArray(item.times) && item.times.length > 0);
     if (autoAdvance && !hasAnyTimes) {
       state.currentMonth.setMonth(state.currentMonth.getMonth() + 1);
@@ -629,7 +671,9 @@ async function loadMonth({ autoAdvance = false } = {}) {
   }
 
   state.currentMonth = originalMonth;
-  grid.innerHTML = `<p class="muted">No available times this month. Try another month.</p>`;
+  grid.innerHTML = state.packageExpiresAt && new Date(state.packageExpiresAt) < new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth(), 1)
+    ? `<p class="muted">This package expires on ${new Date(state.packageExpiresAt).toLocaleDateString()}. Choose a time before then or contact Finbar.</p>`
+    : `<p class="muted">No available times this month. Try another month.</p>`;
 }
 
 function renderSchedule() {
@@ -700,7 +744,9 @@ function updateSelectedUI() {
   list.innerHTML = "";
   state.selected.forEach((slot, index) => {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${slot.date} at ${slot.time}</span>`;
+    const label = document.createElement("span");
+    label.textContent = `${slot.date} at ${slot.time}`;
+    li.appendChild(label);
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "Remove";
@@ -773,10 +819,14 @@ function showCompletedBooking({ datetime }) {
     ? pending.selection
     : (state.selected.length ? state.selected : []);
 
-  $("confirmedList").innerHTML = items.map((item) => {
+  $("confirmedList").replaceChildren(...items.map((item) => {
     const label = item.date && item.time ? `${item.date} at ${item.time}` : slotLabel;
-    return `<li><strong>${label}</strong></li>`;
-  }).join("");
+    const li = document.createElement("li");
+    const strong = document.createElement("strong");
+    strong.textContent = label;
+    li.appendChild(strong);
+    return li;
+  }));
   showTutorWhatsAppLink();
   setStep(4);
 }
@@ -804,6 +854,7 @@ async function finishBooking() {
 
   if (!selectedTier().needsPackage) {
     sessionStorage.setItem("finbarPendingBooking", JSON.stringify({
+      subjectId: selectedSubject().id,
       subject: selectedSubject().name,
       format: state.formatKey,
       tier: state.tierKey,
@@ -860,23 +911,24 @@ async function finishBooking() {
         fields: details.studentName ? [{ id: STUDENT_NAME_FIELD_ID, value: details.studentName }] : [],
         notifyCustomer: index === state.selected.length - 1,
         subject: selectedSubject().name,
+        subjectId: selectedSubject().id,
         format: state.formatKey,
         tier: state.tierKey,
-        totalPrice: selectedFormat().price[selectedTier().key],
         backUrl: state.backUrl,
         studentName: details.studentName,
         studentName2: details.studentName2
       })
     });
 
-    if (ok && data.ok) confirmed.push({ ...slot, appointment: data.appointment });
+    if (ok && data.ok) confirmed.push({ ...slot, appointment: data.appointment, warning: data.warning });
     else failed.push({ ...slot, error: data.error || "Booking failed" });
   }
 
   $("finishBtn").disabled = false;
   $("finishBtn").textContent = "Confirm package sessions";
 
-  $("finishTitle").textContent = failed.length ? "Some sessions need attention." : "Sessions confirmed.";
+  const confirmationNeedsReview = confirmed.some((item) => item.warning);
+  $("finishTitle").textContent = failed.length ? "Some sessions need attention." : confirmationNeedsReview ? "Sessions confirmed; please check the details." : "Sessions confirmed.";
   let remainingAfterBooking = Math.max(0, Number(state.remaining) - confirmed.length);
   if (confirmed.length && state.certificate) {
     try {
@@ -893,12 +945,28 @@ async function finishBooking() {
   }
   $("finishMessage").textContent = failed.length
     ? `${confirmed.length} of ${state.selected.length} sessions were confirmed. Please contact us for the remaining ${failed.length}.`
+    : confirmationNeedsReview
+      ? `${confirmed.length} session(s) were booked, but the balance, email, or dashboard record needs review. Do not book the same time again; contact Finbar.`
     : remainingAfterBooking > 0
       ? `${confirmed.length} session(s) confirmed. You still have ${remainingAfterBooking} session(s) remaining in this package. Use your package code later to book them.`
-      : "All package sessions have been confirmed. A receipt has been sent for each session.";
-  $("confirmedList").innerHTML = confirmed.map((item) =>
-    `<li><strong>${item.date} at ${item.time}</strong><br><a href="${item.appointment?.confirmationPage || "#"}" target="_blank" rel="noopener">View appointment details</a></li>`
-  ).join("");
+      : "All package sessions have been confirmed. Keep the booking references below for your records.";
+  $("confirmedList").replaceChildren(...confirmed.map((item) => {
+    const li = document.createElement("li");
+    const strong = document.createElement("strong");
+    strong.textContent = `${item.date} at ${item.time}`;
+    li.appendChild(strong);
+    const confirmationUrl = safeWebUrl(item.appointment?.confirmationPage);
+    if (confirmationUrl) {
+      li.appendChild(document.createElement("br"));
+      const link = document.createElement("a");
+      link.href = confirmationUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "View appointment details";
+      li.appendChild(link);
+    }
+    return li;
+  }));
   showTutorWhatsAppLink();
   setStep(4);
 }

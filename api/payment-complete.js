@@ -1,4 +1,4 @@
-const { createAppointment, createCertificate, extractCertificateCode, resolvePackageCertificate } = require("../lib/acuity");
+const { acuityCredentials, createAppointment, createCertificate, extractCertificateCode, resolvePackageCertificate } = require("../lib/acuity");
 const { getStripeClient } = require("../lib/stripe");
 const { handleOptions, readJson, resolveBaseOrigin, resolvePublicOrigin, sendJson } = require("../lib/http");
 const {
@@ -71,6 +71,10 @@ function buildPaymentCompleteUrl({
 
 module.exports = async function handler(req, res) {
   if (handleOptions(req, res)) return;
+
+  if (cleanString(process.env.VERCEL) === "1" || cleanString(process.env.VERCEL_ENV) || cleanString(process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE) !== "1") {
+    return sendJson(req, res, 410, { ok: false, error: "The mock payment completion route is disabled. Use Stripe Checkout." });
+  }
 
   if (req.method === "GET") {
     try {
@@ -146,7 +150,14 @@ module.exports = async function handler(req, res) {
     const studentName2 = cleanString(body.studentName2 || body.studentNameSecondary);
     const studentFieldID = cleanString(body.studentFieldID);
 
-    const acuityReady = process.env.ACUITY_USER_ID && process.env.ACUITY_API_KEY;
+    const { userId, apiKey } = acuityCredentials();
+    const acuityReady = Boolean(userId && apiKey);
+    if ((productID || datetime) && !acuityReady) {
+      return sendJson(req, res, 503, {
+        ok: false,
+        error: "Acuity is not configured for this environment. No booking or package was created."
+      });
+    }
     let certificateCreated = false;
     let appointmentCreated = false;
 

@@ -1,4 +1,5 @@
 const { corsHeaders } = require("../lib/http");
+const { acuityCredentials } = require("../lib/acuity");
 
 module.exports = async (req, res) => {
   Object.entries(corsHeaders(req)).forEach(([name, value]) => res.setHeader(name, value));
@@ -9,8 +10,7 @@ module.exports = async (req, res) => {
   }
 
   const { appointmentTypeID, month, date, calendarID, mode } = req.query;
-  const userId = process.env.ACUITY_USER_ID;
-  const apiKey = process.env.ACUITY_API_KEY;
+  const { userId, apiKey } = acuityCredentials();
 
   if (!userId || !apiKey) {
     return res.status(500).json({ ok: false, error: "Acuity credentials are not configured." });

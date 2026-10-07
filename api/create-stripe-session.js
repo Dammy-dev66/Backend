@@ -1,9 +1,14 @@
 const { getStripeClient } = require("../lib/stripe");
+const crypto = require("node:crypto");
 const { handleOptions, readJson, resolveBaseOrigin, resolvePublicOrigin, sendJson } = require("../lib/http");
 const { applyCoupon, couponAppliesToPackage, getCouponByCode } = require("../lib/coupons");
-const { resolveBasePrice, resolvePackageLabel } = require("../lib/pricing");
-const { resolveConfiguredPrice } = require("../lib/price-config");
+const { resolvePackageLabel } = require("../lib/pricing");
+const { readPriceState, resolvePriceFromState, policyVersion } = require("../lib/price-config");
 const { buildSessionsLink } = require("../lib/receipt-email");
+const { findServiceForSelection, findSubjectBySelection, readBookingConfig } = require("../lib/booking-config");
+const { updateLedger, recordPolicySnapshot } = require("../lib/operations-ledger");
+const { hasAcuityCredentials, listAvailabilityTimes } = require("../lib/acuity");
+const { validityWeeks } = require("../lib/package-expiry");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -25,6 +30,7 @@ function cents(amount) {
 
 function resolveMetadata(body) {
   return {
+    subjectId: cleanString(body.subjectId),
     subject: cleanString(body.subject),
     format: cleanString(body.format),
     tier: cleanString(body.tier),
@@ -61,11 +67,80 @@ module.exports = async function handler(req, res) {
     const tier = requiredString(body, "tier");
     const appointmentTypeID = requiredString(body, "appointmentTypeID");
     const metadata = resolveMetadata(body);
+    if (metadata.datetime) {
+      const scheduledAt = new Date(metadata.datetime);
+      const weeks = validityWeeks(tier);
+      if (!weeks || Number.isNaN(scheduledAt.getTime())) {
+        return sendJson(req, res, 400, { ok: false, error: "Choose a valid lesson time before continuing to payment." });
+      }
+      const expiresAt = Date.now() + weeks * 7 * 24 * 60 * 60 * 1000;
+      if (!Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() > expiresAt) {
+        return sendJson(req, res, 400, { ok: false, error: `This lesson must be scheduled within ${weeks} weeks of purchase.` });
+      }
+    }
+    const bookingConfig = await readBookingConfig();
+    const selectedSubject = findSubjectBySelection(bookingConfig, metadata.subjectId || subject);
+    if (!selectedSubject) {
+      return sendJson(req, res, 400, { ok: false, error: "Choose an active subject before continuing to payment." });
+    }
+    const service = findServiceForSelection(bookingConfig, { subject: selectedSubject.id, format, tier });
+    if (!service || String(service.appointmentTypeID) !== appointmentTypeID || String(service.productID || "") !== String(metadata.productID || "")) {
+      return sendJson(req, res, 400, { ok: false, error: "This lesson option has changed. Return to the booking page and select it again." });
+    }
+    metadata.subjectId = selectedSubject.id;
+    metadata.subject = selectedSubject.name;
+    metadata.calendarID = cleanString(service.calendarID) || metadata.calendarID;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(metadata.email)) {
+      return sendJson(req, res, 400, { ok: false, error: "Enter a valid email address so we can issue your package and send your booking details." });
+    }
+    if (!hasAcuityCredentials()) {
+      return sendJson(req, res, 503, { ok: false, error: "Online booking is temporarily unavailable. Please contact Finbar before paying." });
+    }
 
-    const basePrice = await resolveConfiguredPrice(format, tier);
+    if (!metadata.productID) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(metadata.email) || !metadata.firstName || !metadata.lastName || !metadata.phone || !metadata.datetime) {
+        return sendJson(req, res, 400, { ok: false, error: "A valid email, contact name, phone number, and lesson time are required before payment." });
+      }
+      const scheduledAt = new Date(metadata.datetime);
+      if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
+        return sendJson(req, res, 400, { ok: false, error: "Choose a valid lesson time in the future before payment." });
+      }
+      if (format === "oneToTwo" && !metadata.studentName2) {
+        return sendJson(req, res, 400, { ok: false, error: "Add the second student's name before payment for a two-student lesson." });
+      }
+      const availableTimes = await listAvailabilityTimes({
+        appointmentTypeID: Number(appointmentTypeID),
+        calendarID: metadata.calendarID ? Number(metadata.calendarID) : undefined,
+        date: metadata.datetime.slice(0, 10)
+      });
+      const selectedTimestamp = scheduledAt.getTime();
+      const slotIsAvailable = (Array.isArray(availableTimes) ? availableTimes : []).some((slot) => {
+        const slotTime = slot?.datetime || slot?.time || slot;
+        return Number.isFinite(new Date(slotTime).getTime()) && new Date(slotTime).getTime() === selectedTimestamp;
+      });
+      if (!slotIsAvailable) {
+        return sendJson(req, res, 409, { ok: false, error: "That lesson time is no longer available. Return to the calendar and choose another time." });
+      }
+      const weeks = validityWeeks(tier);
+      const validityEndsAt = Date.now() + weeks * 7 * 24 * 60 * 60 * 1000;
+      if (scheduledAt.getTime() > validityEndsAt) {
+        return sendJson(req, res, 400, { ok: false, error: `This lesson must be scheduled within ${weeks} weeks of purchase.` });
+      }
+    }
+
+    const priceState = await readPriceState();
+    const basePrice = resolvePriceFromState(priceState, selectedSubject.id, format, tier);
     if (basePrice === null) {
       return sendJson(req, res, 400, { ok: false, error: "Unknown package format or tier." });
     }
+
+    const policyText = cleanString(priceState.popup.policyText);
+    const currentPolicyVersion = policyVersion(policyText);
+    if (policyText && (body.policyAccepted !== true || cleanString(body.policyVersion) !== currentPolicyVersion)) {
+      return sendJson(req, res, 400, { ok: false, error: "Review and accept the current lesson policy before paying." });
+    }
+    const policySnapshotId = policyText ? `policy-${crypto.randomUUID()}` : "";
+    const policyAcceptedAt = policyText ? new Date().toISOString() : "";
 
     const coupon = metadata.couponCode ? await getCouponByCode(metadata.couponCode) : null;
     if (metadata.couponCode && (!coupon || !couponAppliesToPackage(coupon, format, tier))) {
@@ -74,11 +149,32 @@ module.exports = async function handler(req, res) {
 
     const applied = applyCoupon(basePrice, coupon);
     const totalPrice = applied.totalPrice;
+    if (typeof body.quotedTotalCents !== "number" || !Number.isSafeInteger(body.quotedTotalCents) || body.quotedTotalCents < 0 || body.quotedTotalCents > 10000000) {
+      return sendJson(req, res, 400, { ok: false, error: "Refresh the lesson quote before opening payment." });
+    }
+    if (body.quotedTotalCents !== cents(totalPrice)) {
+      return sendJson(req, res, 409, {
+        ok: false,
+        code: "PRICE_CHANGED",
+        error: "The lesson price changed. Review the updated total before paying.",
+        totalPrice
+      });
+    }
+    if (policyText) {
+      await updateLedger((ledger) => recordPolicySnapshot(ledger, {
+        id: policySnapshotId,
+        policyVersion: currentPolicyVersion,
+        policyText,
+        acceptedAt: policyAcceptedAt,
+        status: "pending"
+      }));
+    }
     const stripe = getStripeClient();
     const origin = resolvePublicOrigin(resolveBaseOrigin(req));
     const successUrl = new URL("/return.html", origin);
 
-    successUrl.searchParams.set("subject", subject);
+    successUrl.searchParams.set("subject", selectedSubject.name);
+    successUrl.searchParams.set("subjectId", selectedSubject.id);
     successUrl.searchParams.set("format", format);
     successUrl.searchParams.set("tier", tier);
     successUrl.searchParams.set("appointmentTypeID", appointmentTypeID);
@@ -92,7 +188,8 @@ module.exports = async function handler(req, res) {
     successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
     if (metadata.studentName2) successUrl.searchParams.set("studentName2", metadata.studentName2);
     successUrl.searchParams.set("bookingLink", buildSessionsLink({
-      subject,
+      subject: selectedSubject.name,
+      subjectId: selectedSubject.id,
       format,
       tier,
       appointmentTypeID,
@@ -106,7 +203,8 @@ module.exports = async function handler(req, res) {
 
     const cancelUrl = new URL("/checkout.html", origin);
     Object.entries({
-      subject,
+      subject: selectedSubject.name,
+      subjectId: selectedSubject.id,
       format,
       tier,
       appointmentTypeID,
@@ -140,7 +238,7 @@ module.exports = async function handler(req, res) {
             currency: "eur",
             unit_amount: cents(totalPrice),
             product_data: {
-              name: `${subject} - ${resolvePackageLabel(format, tier)}`,
+              name: `${selectedSubject.name} - ${resolvePackageLabel(format, tier)}`,
               description: metadata.couponCode
                 ? `Coupon ${metadata.couponCode} applied`
                 : "Custom package purchase"
@@ -158,11 +256,28 @@ module.exports = async function handler(req, res) {
         : undefined,
       metadata: {
         ...metadata,
+        ...(policySnapshotId ? { policySnapshotId } : {}),
+        ...(policySnapshotId ? { policyVersion: currentPolicyVersion, policyAcceptedAt } : {}),
         basePrice: String(basePrice),
         discountAmount: String(applied.discountAmount),
         totalPrice: String(totalPrice)
       }
     });
+
+    if (policySnapshotId) {
+      await updateLedger((ledger) => {
+        const current = ledger.policySnapshots.find((item) => item.id === policySnapshotId);
+        if (current?.status === "paid") return ledger;
+        return recordPolicySnapshot(ledger, {
+        id: policySnapshotId,
+        policyVersion: currentPolicyVersion,
+        policyText,
+        acceptedAt: policyAcceptedAt,
+        sessionId: session.id,
+        status: "attached"
+        });
+      }).catch((error) => console.error("policy snapshot session link failed", error));
+    }
 
     return sendJson(req, res, 200, {
       ok: true,

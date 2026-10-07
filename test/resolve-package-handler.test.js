@@ -5,6 +5,8 @@ const { Readable } = require("node:stream");
 const handlerPath = require.resolve("../api/resolve-package");
 const acuityPath = require.resolve("../lib/acuity");
 const stripePath = require.resolve("../lib/stripe");
+const ledgerPath = require.resolve("../lib/operations-ledger");
+const { isSessionPaid } = require("../lib/stripe");
 const { profileToken } = require("../lib/package-profile");
 
 function response() {
@@ -18,6 +20,7 @@ function response() {
 
 test("resolve-package accepts a package code without an email", async () => {
   delete require.cache[acuityPath];
+  require.cache[ledgerPath] = { exports: { readLedger: async () => ({ packages: [] }) } };
   delete require.cache[handlerPath];
   let checked;
   require.cache[acuityPath] = { exports: {
@@ -46,12 +49,14 @@ test("resolve-package returns saved details only for the signed receipt link", a
   delete require.cache[acuityPath];
   delete require.cache[stripePath];
   delete require.cache[handlerPath];
+  require.cache[ledgerPath] = { exports: { readLedger: async () => ({ packages: [] }) } };
 
   require.cache[acuityPath] = { exports: {
     checkCertificate: async () => ({ remaining: 3 }),
     resolvePackageCertificate: async () => { throw new Error("email lookup should not run"); }
   }};
   require.cache[stripePath] = { exports: {
+    isSessionPaid,
     getStripeClient: () => ({
       checkout: {
         sessions: {

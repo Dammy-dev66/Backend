@@ -16,6 +16,7 @@ function requiredString(body, field) {
 
 function buildPackageCheckoutUrl({
   subject,
+  subjectId,
   format,
   tier,
   appointmentTypeID,
@@ -37,6 +38,10 @@ function buildPackageCheckoutUrl({
   const canonicalOrigin = resolvePublicOrigin(baseOrigin || "https://backend-ymlj.vercel.app");
   const url = new URL("/checkout.html", canonicalOrigin);
   const returnUrl = new URL("/return.html", canonicalOrigin);
+  if (subjectId) {
+    url.searchParams.set("subjectId", subjectId);
+    returnUrl.searchParams.set("subjectId", subjectId);
+  }
   ["subject", "format", "tier", "appointmentTypeID", "email", "backUrl", "productID"].forEach((key) => {
     if (key === "email" && email) returnUrl.searchParams.set("email", email);
     if (key === "backUrl" && backUrl) returnUrl.searchParams.set("backUrl", backUrl);
@@ -86,6 +91,7 @@ module.exports = async function handler(req, res) {
     const appointmentTypeID = requiredString(body, "appointmentTypeID");
     const url = buildPackageCheckoutUrl({
       subject,
+      subjectId: cleanString(body.subjectId),
       format,
       tier,
       appointmentTypeID,

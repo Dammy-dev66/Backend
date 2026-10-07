@@ -1,17 +1,44 @@
 (() => {
+  const ADMIN_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+  const ADMIN_LAST_ACTIVITY_KEY = "finbarAdminLastActivity";
+  const storedKey = sessionStorage.getItem("finbarAdminKey");
+  const lastActivity = Number(sessionStorage.getItem(ADMIN_LAST_ACTIVITY_KEY));
+
+  if (!storedKey || !Number.isFinite(lastActivity) || Date.now() - lastActivity >= ADMIN_IDLE_TIMEOUT_MS) {
+    sessionStorage.removeItem("finbarAdminKey");
+    sessionStorage.removeItem(ADMIN_LAST_ACTIVITY_KEY);
+    window.location.replace("/admin-login.html?reason=expired");
+    return;
+  }
+
+  function markAdminActivity() {
+    if (sessionStorage.getItem("finbarAdminKey")) {
+      sessionStorage.setItem(ADMIN_LAST_ACTIVITY_KEY, String(Date.now()));
+    }
+  }
+
+  ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => {
+    document.addEventListener(eventName, markAdminActivity, { passive: true });
+  });
+
+  window.setInterval(() => {
+    const lastActive = Number(sessionStorage.getItem(ADMIN_LAST_ACTIVITY_KEY));
+    if (!Number.isFinite(lastActive) || Date.now() - lastActive >= ADMIN_IDLE_TIMEOUT_MS) {
+      sessionStorage.removeItem("finbarAdminKey");
+      sessionStorage.removeItem(ADMIN_LAST_ACTIVITY_KEY);
+      window.location.replace("/admin-login.html?reason=expired");
+    }
+  }, 60 * 1000);
+
   const BOOKING_API = "/api/booking-config";
   const COUPON_API = "/api/admin/coupons";
   const OPERATIONS_API = "/api/admin/coupons?resource=operations";
   const CLIENT_API = "/api/admin/coupons?resource=client";
   const APPOINTMENT_API = "/api/admin/coupons?resource=appointment";
+  const RECEIPT_API = "/api/admin/coupons?resource=receipt";
   const TEMPLATE_API = "/api/admin/coupons?resource=templates";
   const PROOF_TEMPLATE_API = "/api/admin/coupons?resource=proofreading-templates";
   const PRICING_API = "/api/admin/coupons?resource=pricing";
-
-  if (!sessionStorage.getItem("finbarAdminKey")) {
-    window.location.replace("/admin-login.html");
-    return;
-  }
 
   const tabButtons = Array.from(document.querySelectorAll(".admin-tab"));
   const tabPanels = Array.from(document.querySelectorAll(".admin-tab-panel"));
@@ -22,6 +49,10 @@
   const adminError = document.getElementById("adminError");
   const adminStatus = document.getElementById("adminStatus");
   const refreshBtn = document.getElementById("refreshBtn");
+  const backupDownloadBtn = document.getElementById("backupDownloadBtn");
+  const backupRestoreFile = document.getElementById("backupRestoreFile");
+  const backupRestoreSection = document.getElementById("backupRestoreSection");
+  const backupRestoreBtn = document.getElementById("backupRestoreBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const addSubjectBtn = document.getElementById("addSubjectBtn");
   const addServiceBtn = document.getElementById("addServiceBtn");
@@ -39,6 +70,7 @@
   const couponStatus = document.getElementById("couponStatus");
   const operationsSummary = document.getElementById("operationsSummary");
   const operationsList = document.getElementById("operationsList");
+  const fulfillmentIssues = document.getElementById("fulfillmentIssues");
   const clientDrawer = document.getElementById("clientDrawer");
   const operationSearchInput = document.getElementById("operationSearchInput");
   const refreshOperationsBtn = document.getElementById("refreshOperationsBtn");
@@ -67,6 +99,13 @@
   const pricingReference = document.getElementById("pricingReference");
   const refreshPricingBtn = document.getElementById("refreshPricingBtn");
   const savePricingBtn = document.getElementById("savePricingBtn");
+  const priceSubjectSelect = document.getElementById("priceSubjectSelect");
+  const priceUseDefaultWrap = document.getElementById("priceUseDefaultWrap");
+  const priceUseDefaultInput = document.getElementById("priceUseDefaultInput");
+  const popupHeadingInput = document.getElementById("popupHeadingInput");
+  const popupPack6Input = document.getElementById("popupPack6Input");
+  const popupPack12Input = document.getElementById("popupPack12Input");
+  const popupPolicyInput = document.getElementById("popupPolicyInput");
   const dashboardTitle = document.getElementById("dashboardTitle");
   const dashboardKicker = document.getElementById("dashboardKicker");
 
@@ -105,15 +144,25 @@
     selectedCouponCode: "",
     operations: [],
     operationsSummary: {},
+    fulfillmentIssues: [],
+    actionIssues: [],
+    backfillError: "",
     selectedClientEmail: "",
+    appointmentActionPending: false,
     templates: {},
+    templatesRevision: "",
     defaults: {},
     selectedTemplateKind: "package",
     proofreadingTemplates: {},
+    proofreadingRevision: "",
     proofreadingDefaults: {},
     selectedProofreadingTemplateKind: "reviewDocument",
-    pricing: { currency: "EUR", prices: {} },
+    pricing: { currency: "EUR", prices: {}, subjectPrices: {}, popup: {} },
     pricingServices: [],
+    bookingRevision: "",
+    couponRevision: "",
+    pricingSubjectId: "",
+    useDefaultPricing: false,
     search: {
       subjects: "",
       services: "",
@@ -131,10 +180,6 @@
 
   function getAdminKey() {
     return sessionStorage.getItem("finbarAdminKey") || "";
-  }
-
-  function setAdminKey(value) {
-    sessionStorage.setItem("finbarAdminKey", value);
   }
 
   function showError(message) {
@@ -190,19 +235,78 @@
   }
 
   function renderPricing() {
-    const prices = state.pricing.prices || {};
+    state.pricing.prices = state.pricing.prices || {};
+    state.pricing.subjectPrices = state.pricing.subjectPrices || {};
+    state.pricing.popup = state.pricing.popup || {};
+    const options = [`<option value="">Shared defaults</option>`, ...state.subjects.map((subject) => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name)}</option>`)];
+    priceSubjectSelect.innerHTML = options.join("");
+    if (!state.subjects.some((subject) => subject.id === state.pricingSubjectId)) state.pricingSubjectId = "";
+    priceSubjectSelect.value = state.pricingSubjectId;
+    const overrides = state.pricing.subjectPrices[state.pricingSubjectId];
+    state.useDefaultPricing = Boolean(state.pricingSubjectId && !overrides);
+    priceUseDefaultWrap.classList.toggle("hidden", !state.pricingSubjectId);
+    priceUseDefaultInput.checked = state.useDefaultPricing;
+    const prices = state.pricingSubjectId && overrides ? overrides : state.pricing.prices;
     const keys = ["oneToOne", "oneToTwo"].flatMap((format) => ["trial", "single", "pack6", "pack12"].map((tier) => ({ format, tier })));
-    priceEditorGrid.innerHTML = keys.map(({ format, tier }) => `<label class="price-editor-field"><span>${escapeHtml(priceLabel(format, tier))}</span><div><b>EUR</b><input type="number" min="0" max="100000" step="0.01" inputmode="decimal" data-price-format="${format}" data-price-tier="${tier}" value="${Number(prices?.[format]?.[tier] || 0).toFixed(2)}"></div></label>`).join("");
-    const reported = state.pricingServices.filter((service) => service.appointmentTypeID && service.acuityPrice !== null);
+    priceEditorGrid.innerHTML = keys.map(({ format, tier }) => `<label class="price-editor-field"><span>${escapeHtml(priceLabel(format, tier))}</span><div><b>EUR</b><input type="number" min="0" max="100000" step="0.01" inputmode="decimal" data-price-format="${format}" data-price-tier="${tier}" value="${Number(prices?.[format]?.[tier] ?? 0).toFixed(2)}"${state.useDefaultPricing ? " disabled" : ""}></div></label>`).join("");
+    popupHeadingInput.value = state.pricing.popup.heading || "";
+    popupPack6Input.value = state.pricing.popup.packageNotes?.pack6 || "";
+    popupPack12Input.value = state.pricing.popup.packageNotes?.pack12 || "";
+    popupPolicyInput.value = state.pricing.popup.policyText || "";
+    const mapped = state.pricingServices.filter((service) => service.appointmentTypeID);
+    const reported = mapped.filter((service) => Number.isFinite(service.acuityPrice));
     const mismatches = reported.filter((service) => service.matchesAcuity === false);
-    pricingReference.innerHTML = `<div class="record-editor-head"><strong>Acuity reference</strong><span class="status-pill">${reported.length ? `${mismatches.length} mismatch${mismatches.length === 1 ? "" : "es"}` : "Unavailable"}</span></div><p class="editor-note">Acuity’s API lets the dashboard read these amounts, but does not support changing appointment-type prices. Website and Stripe use the prices on the left.</p>${reported.length ? `<div class="pricing-reference-list">${reported.map((service) => `<div><strong>${escapeHtml(service.subject || service.label)}</strong><span>${escapeHtml(priceLabel(service.format, service.tier))}</span><em class="${service.matchesAcuity ? "matches" : "mismatch"}">Acuity: EUR ${service.acuityPrice.toFixed(2)} · Website: EUR ${Number(service.websitePrice).toFixed(2)}</em></div>`).join("")}</div>` : `<p class="muted">Acuity price data is not available at the moment. The website and Stripe prices above are still active.</p>`}`;
+    const selected = state.pricingSubjectId ? mapped.filter((service) => service.subjectId === state.pricingSubjectId) : [];
+    pricingReference.innerHTML = `
+      <div class="record-editor-head"><strong>Acuity reference</strong><span class="status-pill">${reported.length ? `${mismatches.length} mismatch${mismatches.length === 1 ? "" : "es"}` : "Unavailable"}</span></div>
+      <p class="editor-note">Website and Stripe use the prices on the left. Saving here does not change Acuity's appointment-type prices.</p>
+      ${state.pricingSubjectId
+        ? selected.length
+          ? `<div class="pricing-reference-list">${selected.map((service) => `<div><strong>${escapeHtml(priceLabel(service.format, service.tier))}</strong><span>Acuity appointment type ${escapeHtml(service.appointmentTypeID)}</span><em class="${service.matchesAcuity === true ? "matches" : "mismatch"}">${Number.isFinite(service.acuityPrice) ? `Acuity: EUR ${service.acuityPrice.toFixed(2)} · Website: EUR ${Number(service.websitePrice).toFixed(2)}${service.matchesAcuity ? " · Matched" : " · Update in Acuity"}` : "Acuity price unavailable · Check this type in Acuity"}</em></div>`).join("")}</div>`
+          : `<p class="muted">No Acuity lesson types are mapped to this subject yet.</p>`
+        : `<p class="muted">Select a subject to review its matching Acuity lesson types${mismatches.length ? `; ${mismatches.length} price mismatch${mismatches.length === 1 ? "" : "es"} need attention` : ""}.</p>`}
+    `;
   }
 
   async function loadPricing() {
     const data = await api("GET", PRICING_API);
     state.pricing = data.pricing || state.pricing;
+    state.pricing.subjectPrices = state.pricing.subjectPrices || {};
     state.pricingServices = data.services || [];
     renderPricing();
+  }
+
+  function readPriceMatrix() {
+    const prices = { oneToOne: {}, oneToTwo: {} };
+    priceEditorGrid.querySelectorAll("[data-price-format]").forEach((input) => {
+      if (input.value.trim() === "") {
+        throw new Error(`Enter a price for ${priceLabel(input.dataset.priceFormat, input.dataset.priceTier)}.`);
+      }
+      const amount = Number(input.value);
+      if (!Number.isFinite(amount) || amount < 0 || amount > 100000 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6) {
+        throw new Error(`Enter a valid price for ${priceLabel(input.dataset.priceFormat, input.dataset.priceTier)}.`);
+      }
+      prices[input.dataset.priceFormat][input.dataset.priceTier] = Math.round(amount * 100) / 100;
+    });
+    return prices;
+  }
+
+  function capturePricingEditor() {
+    const matrix = readPriceMatrix();
+    state.pricing.popup = {
+      ...(state.pricing.popup || {}),
+      heading: popupHeadingInput.value.trim(),
+      packageNotes: { pack6: popupPack6Input.value.trim(), pack12: popupPack12Input.value.trim() },
+      policyText: popupPolicyInput.value.trim()
+    };
+    if (state.pricingSubjectId && state.useDefaultPricing) {
+      delete state.pricing.subjectPrices[state.pricingSubjectId];
+    } else if (state.pricingSubjectId) {
+      state.pricing.subjectPrices[state.pricingSubjectId] = matrix;
+    } else {
+      state.pricing.prices = matrix;
+    }
+    return matrix;
   }
 
   function subjectDisplay(subject) {
@@ -284,7 +388,13 @@
     serviceLinkInput.value = record.bookingLink;
     serviceActiveInput.checked = record.active !== false;
     serviceNoteInput.value = record.note;
-    serviceStatus.textContent = record.id ? (record.appointmentTypeID || record.bookingLink ? "Connected" : "Needs mapping") : "";
+    serviceStatus.textContent = record.id ? serviceConnectionStatus(record) : "";
+  }
+
+  function serviceConnectionStatus(service) {
+    if (service.appointmentTypeID) return "Connected";
+    if (service.bookingLink) return "External link only - not price-connected";
+    return "Needs Acuity mapping";
   }
 
   function fillCouponEditor(coupon) {
@@ -324,7 +434,7 @@
       row.type = "button";
       row.className = `record-row${subject.id === state.selectedSubjectId ? " active" : ""}`;
       const serviceCount = state.services.filter((service) => service.subjectId === subject.id).length;
-      const mappedCount = state.services.filter((service) => service.subjectId === subject.id && (service.appointmentTypeID || service.bookingLink)).length;
+      const mappedCount = state.services.filter((service) => service.subjectId === subject.id && service.appointmentTypeID).length;
       row.innerHTML = `
         <strong>${subjectDisplay(subject)}</strong>
         <span>${subject.slug || "No slug yet"}${subject.active === false ? " - inactive" : ""}</span>
@@ -366,22 +476,50 @@
       return;
     }
 
+    const groups = new Map();
     items.forEach((service) => {
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = `record-row${service.id === state.selectedServiceId ? " active" : ""}`;
       const subject = state.subjects.find((item) => item.id === service.subjectId);
-      row.innerHTML = `
-        <strong>${subject?.name || "Unlinked subject"} - ${serviceDisplay(service)}</strong>
-        <span>${service.format === "oneToTwo" ? "Tutor + two students" : "Tutor + one student"} - ${service.tier}</span>
-        <small>${service.appointmentTypeID ? `Acuity ID ${service.appointmentTypeID}` : "Needs Acuity ID"}${service.active === false ? " - inactive" : ""}</small>
-      `;
-      row.addEventListener("click", () => {
-        state.selectedServiceId = service.id;
-        fillServiceEditor(service);
-        renderServiceList();
+      const subjectName = subject?.name || "Unlinked subject";
+      if (!groups.has(subjectName)) groups.set(subjectName, []);
+      groups.get(subjectName).push(service);
+    });
+
+    groups.forEach((services, subjectName) => {
+      const group = document.createElement("details");
+      group.className = "service-group";
+      group.open = Boolean(query || subjectFilter || services.some((service) => service.id === state.selectedServiceId));
+
+      const summary = document.createElement("summary");
+      const title = document.createElement("strong");
+      title.textContent = subjectName;
+      const count = document.createElement("span");
+      const mappedCount = services.filter((service) => service.appointmentTypeID).length;
+      count.textContent = `${mappedCount}/${services.length} mapped`;
+      summary.append(title, count);
+
+      const rows = document.createElement("div");
+      rows.className = "service-group__rows";
+      services.forEach((service) => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = `record-row${service.id === state.selectedServiceId ? " active" : ""}`;
+        const label = document.createElement("strong");
+        label.textContent = serviceDisplay(service);
+        const detail = document.createElement("span");
+        detail.textContent = `${service.format === "oneToTwo" ? "Tutor + two students" : "Tutor + one student"} - ${service.tier}`;
+        const mapping = document.createElement("small");
+        mapping.textContent = `${service.appointmentTypeID ? `Acuity ID ${service.appointmentTypeID}` : service.bookingLink ? "External link only - not price-connected" : "Needs Acuity ID"}${service.active === false ? " - inactive" : ""}`;
+        row.append(label, detail, mapping);
+        row.addEventListener("click", () => {
+          state.selectedServiceId = service.id;
+          fillServiceEditor(service);
+          renderServiceList();
+        });
+        rows.appendChild(row);
       });
-      serviceList.appendChild(row);
+
+      group.append(summary, rows);
+      serviceList.appendChild(group);
     });
   }
 
@@ -455,8 +593,6 @@
       throw new Error("Your dashboard session has ended.");
     }
 
-    setAdminKey(key);
-
     const res = await fetch(url, {
       method,
       headers: {
@@ -470,6 +606,7 @@
     if (!res.ok || !data.ok) {
       if (res.status === 401 || res.status === 403) {
         sessionStorage.removeItem("finbarAdminKey");
+        sessionStorage.removeItem(ADMIN_LAST_ACTIVITY_KEY);
         window.location.replace("/admin-login.html?reason=expired");
       }
       throw new Error(data.error || "Unable to save dashboard settings.");
@@ -491,15 +628,75 @@
     return Number.isNaN(date.getTime()) ? "Time to be confirmed" : new Intl.DateTimeFormat("en-IE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Dublin" }).format(date);
   }
 
+  function formatEurMinor(value) {
+    return Number.isFinite(Number(value)) ? `EUR ${(Number(value) / 100).toFixed(2)}` : "amount unavailable";
+  }
+
+  function packageExpiryDate(packageRecord) {
+    const weeks = { trial: 6, single: 6, pack6: 12, pack12: 20 }[packageRecord.tier];
+    const date = new Date(packageRecord.purchasedAt);
+    if (!weeks || Number.isNaN(date.getTime())) return "";
+    date.setUTCDate(date.getUTCDate() + weeks * 7);
+    return date.toISOString();
+  }
+
   function operationBadge(item) {
     if (item.canceled) return "Canceled";
+    if (item.status === "Completed") return "Completed";
     if (Array.isArray(item.packageRemaining) && item.packageRemaining.length) return `${item.packageRemaining[0]} package lessons left`;
     if (Array.isArray(item.packageCodes) && item.packageCodes.length) return "Package linked";
     return item.status || "Scheduled";
   }
 
+  function renderActionIssue(item) {
+    const packageAttempt = item.type === "package-booking";
+    const details = packageAttempt
+      ? `${escapeHtml(item.email)} · ${escapeHtml(formatDate(item.datetime || item.createdAt))} · package ${escapeHtml(item.certificate)}`
+      : `${escapeHtml(item.actor || "Fin")} · ${escapeHtml(item.type)} · appointment ${escapeHtml(item.appointmentID || "unknown")}${item.targetDate ? ` · requested ${escapeHtml(formatDate(item.targetDate))}` : ""}`;
+    const buttons = packageAttempt
+      ? `<button type="button" class="btn-secondary" data-reconcile-action="${escapeHtml(item.id)}" data-package-resolution="confirmed" data-appointment-id="${escapeHtml(item.appointmentID)}">Found booking</button>${item.appointmentID ? "" : `<button type="button" class="btn-secondary" data-reconcile-action="${escapeHtml(item.id)}" data-package-resolution="not-booked">Not booked</button>`}`
+      : `<button type="button" class="btn-secondary" data-reconcile-action="${escapeHtml(item.id)}" data-appointment-id="${escapeHtml(item.appointmentID)}">Mark reviewed</button>`;
+    return `<div class="reconciliation-row"><small>${details} · ${escapeHtml(item.result)}${item.error ? ` · ${escapeHtml(item.error)}` : ""}</small>${buttons}</div>`;
+  }
+
   function renderOperations() {
     const summary = state.operationsSummary || {};
+    const issues = state.fulfillmentIssues || [];
+    const actionIssues = state.actionIssues || [];
+    const hasIssues = issues.length > 0 || actionIssues.length > 0 || Boolean(state.backfillError);
+    fulfillmentIssues.classList.toggle("hidden", !hasIssues);
+    const actionMarkup = actionIssues.length
+      ? `<strong>${actionIssues.length} booking action${actionIssues.length === 1 ? " needs" : "s need"} reconciliation</strong><span>Check the booking in Acuity and confirm any customer email before retrying. A pending action may have reached Acuity even if this page did not receive the result.</span>${actionIssues.map(renderActionIssue).join("")}`
+      : "";
+    const paymentMarkup = issues.length
+      ? `<strong>${issues.length} payment fulfillment${issues.length === 1 ? " needs" : "s need"} reconciliation</strong><span>Do not replay these payments automatically. Check the payment and booking in Stripe/Acuity before resolving them.</span>${issues.map((item) => `<small>${escapeHtml(item.email || "Customer unavailable")} · ${escapeHtml(item.stage || item.status)} · Stripe session ${escapeHtml(item.sessionId || item.orderID || "unknown")}${item.error ? ` · ${escapeHtml(item.error)}` : ""}</small>`).join("")}`
+      : "";
+    const backfillMarkup = state.backfillError
+      ? `<strong>Stripe history import incomplete</strong><span>Some older package records may be missing. Refresh bookings to retry the import.</span><small>${escapeHtml(state.backfillError)}</small>`
+      : "";
+    fulfillmentIssues.innerHTML = hasIssues
+      ? `${actionMarkup}${paymentMarkup}${backfillMarkup}`
+      : "";
+    fulfillmentIssues.querySelectorAll("[data-reconcile-action]").forEach((button) => button.addEventListener("click", async () => {
+      const resolution = button.dataset.packageResolution || "";
+      let appointmentId = button.dataset.appointmentId || "";
+      if (resolution === "confirmed") {
+        const answer = window.prompt("Enter the matching Acuity appointment ID after checking the client, lesson, time, and package:", appointmentId);
+        if (answer === null) return;
+        appointmentId = answer.trim();
+        if (!appointmentId) return showError("Enter the matching Acuity appointment ID before confirming this booking.");
+      } else if (resolution === "not-booked") {
+        if (!window.confirm("Confirm Acuity has no matching lesson. This releases the request so the customer may try again, which could create a duplicate if a booking was missed.")) return;
+      } else if (!window.confirm("Only mark this reviewed after checking the appointment in Acuity and confirming whether the customer email was sent. This does not repeat or undo the booking action.")) return;
+      const note = window.prompt("What did you verify? This note is saved to the audit history:", "")?.trim() || "";
+      if (note.length < 8) return showError("Enter a short reconciliation note (at least 8 characters). The action has not been changed.");
+      try {
+        await api("POST", APPOINTMENT_API, { action: "reconcile", actionId: button.dataset.reconcileAction, appointmentId, resolution, note });
+        showStatus(resolution === "not-booked" ? "No booking found; this request may be tried again." : "Action reconciled. No booking or email was repeated.");
+        await loadOperations();
+        if (state.selectedClientEmail) await loadClient(state.selectedClientEmail);
+      } catch (error) { showError(error.message); }
+    }));
     operationsSummary.innerHTML = [
       ["Today", summary.today || 0],
       ["Upcoming", summary.upcoming || 0],
@@ -534,6 +731,9 @@
     const data = await api("GET", OPERATIONS_API);
     state.operations = data.appointments || [];
     state.operationsSummary = data.summary || {};
+    state.fulfillmentIssues = data.fulfillmentIssues || [];
+    state.actionIssues = data.actionIssues || [];
+    state.backfillError = data.backfillError || "";
     renderOperations();
     if (data.backfillPending) {
       window.setTimeout(() => loadOperations().catch((error) => showError(error.message)), 500);
@@ -553,21 +753,53 @@
     const packages = client.packages || [];
     const receipts = client.receipts || [];
     const actions = client.actions || [];
+    const activeAppointment = !appointment.canceled && appointment.status !== "Completed";
+    const changeAllowed = appointment.datetime && Date.now() < new Date(appointment.datetime).getTime() && activeAppointment;
+    const noShowAllowed = appointment.datetime && Date.now() >= new Date(appointment.datetime).getTime() + 20 * 60 * 1000 && activeAppointment;
+    const completeAllowed = appointment.datetime && Date.now() >= new Date(appointment.datetime).getTime() && !appointment.canceled && appointment.status !== "Completed";
+    const recordingAllowed = appointment.format === "oneToTwo" && appointment.status === "Completed";
     clientDrawer.innerHTML = `
       <div class="drawer-head"><div><span class="eyebrow">Client record</span><h3>${escapeHtml(appointment.clientName)}</h3><a href="mailto:${escapeHtml(client.email)}">${escapeHtml(client.email)}</a></div><button type="button" class="drawer-close" aria-label="Close client details">×</button></div>
-      <div class="client-booking"><strong>${escapeHtml(appointment.subject)}</strong><span>${escapeHtml(formatDate(appointment.datetime))}</span><small>${escapeHtml(appointment.status)}</small></div>
-      <section class="drawer-section"><h4>Client bookings</h4>${(client.appointments || []).map((item) => `<button class="client-appointment${item.id === appointment.id ? " active" : ""}" type="button" data-client-appointment="${escapeHtml(item.id)}"><strong>${escapeHtml(item.subject)}</strong><span>${escapeHtml(formatDate(item.datetime))}</span><small>${escapeHtml(item.status)}</small></button>`).join("")}</section>
-      <section class="drawer-section"><h4>Package balance</h4>${packages.length ? packages.map((item) => `<div class="package-balance"><strong>${escapeHtml(item.certificate || "Package code pending")}</strong><span>${Number.isFinite(item.remaining) ? `${item.remaining} lesson${item.remaining === 1 ? "" : "s"} remaining` : "Check completed when this record opened"}</span></div>`).join("") : `<p class="muted">No linked package yet.</p>`}
+      <div class="client-booking"><strong>${escapeHtml(appointment.subject)}</strong><span>${escapeHtml(formatDate(appointment.datetime))}</span><small>${escapeHtml(appointment.status)}</small>${appointment.expiresAt ? `<small>Lesson entitlement expires ${escapeHtml(formatDate(appointment.expiresAt))}</small>` : ""}${appointment.policyAcceptedAt ? `<small>Lesson terms accepted ${escapeHtml(formatDate(appointment.policyAcceptedAt))}${appointment.policyVersion ? ` · version ${escapeHtml(appointment.policyVersion.slice(0, 8))}` : ""}</small>` : ""}${appointment.withinLateChangeWindow ? `<small class="policy-warning">Within 12 hours: 50% refund rule applies${appointment.lateChangeRefundMinor !== null ? ` · ${escapeHtml(formatEurMinor(appointment.lateChangeRefundMinor))} based on recorded payment` : " · payment record unavailable"}</small>` : ""}</div>
+      <section class="drawer-section"><h4>Client bookings</h4>${(client.appointments || []).map((item) => `<button class="client-appointment${item.id === appointment.id ? " active" : ""}" type="button" data-client-appointment="${escapeHtml(item.id)}"><strong>${escapeHtml(item.subject)}</strong><span>${escapeHtml(formatDate(item.datetime))}</span><small>${escapeHtml(item.status)}</small>${item.policyAcceptedAt ? `<small>Terms accepted ${escapeHtml(formatDate(item.policyAcceptedAt))}</small>` : ""}</button>`).join("")}</section>
+      <section class="drawer-section"><h4>Package balance</h4>${packages.length ? packages.map((item) => `<div class="package-balance"><strong>${escapeHtml(item.certificate || "Package code pending")}</strong><span>${Number.isFinite(item.remaining) ? `${item.remaining} lesson${item.remaining === 1 ? "" : "s"} remaining` : "Check completed when this record opened"}</span>${item.tier && item.purchasedAt ? `<small>${escapeHtml(item.tier)} · purchased ${escapeHtml(formatDate(item.purchasedAt))}${!item.linkedManually ? ` · expires ${escapeHtml(formatDate(packageExpiryDate(item)))}` : " · expiry not recorded"}</small>` : ""}</div>`).join("") : `<p class="muted">No linked package yet.</p>`}
         <details class="link-package"><summary>Link an older package</summary><div class="link-package__fields"><input id="linkPackageCode" placeholder="Package code"><input id="linkPackageType" placeholder="Appointment type ID" value="${escapeHtml(appointment.appointmentTypeID)}"><button class="btn-secondary" type="button" id="linkPackageBtn">Link package</button></div></details>
       </section>
       <section class="drawer-section"><h4>Booking actions</h4>
-        <div class="action-grid"><button class="btn-secondary" type="button" id="resendBookingBtn">Resend email</button><button class="btn-secondary" type="button" id="showRescheduleBtn">Reschedule</button><button class="btn-danger" type="button" id="cancelBookingBtn">Cancel lesson</button></div>
+        <div class="action-grid"><button class="btn-secondary" type="button" id="resendBookingBtn">Resend email</button><button class="btn-secondary" type="button" id="showRescheduleBtn"${changeAllowed ? "" : " disabled"}>Reschedule</button><button class="btn-danger" type="button" id="cancelBookingBtn"${changeAllowed ? "" : " disabled"}>Cancel lesson</button><button class="btn-secondary" type="button" id="completeBookingBtn"${completeAllowed ? "" : " disabled"}>Mark completed</button><button class="btn-secondary" type="button" id="noShowBookingBtn"${noShowAllowed ? "" : " disabled"} title="${noShowAllowed ? "" : "Available after the appointment start plus 20 minutes"}">Mark no-show</button></div>
         <div class="reschedule-panel hidden" id="reschedulePanel"><label class="field"><span>New date</span><input id="rescheduleDate" type="date"></label><button class="btn-secondary" id="loadSlotsBtn" type="button">Show available times</button><select id="rescheduleTime" class="hidden"></select><input id="rescheduleNote" class="hidden" placeholder="Optional note for the client"><button class="btn-primary hidden" id="confirmRescheduleBtn" type="button">Confirm reschedule</button></div>
       </section>
-      <section class="drawer-section"><h4>Receipt history</h4>${receipts.length ? receipts.slice(0, 5).map((item) => `<p class="timeline-row"><strong>${escapeHtml(item.kind || "Email")}</strong><span>${item.sent ? "Sent" : "Not sent"} · ${escapeHtml(formatDate(item.createdAt))}</span></p>`).join("") : `<p class="muted">No recorded receipt emails yet.</p>`}</section>
-      <section class="drawer-section"><h4>Internal action history</h4>${actions.length ? actions.slice(0, 5).map((item) => `<p class="timeline-row"><strong>${escapeHtml(item.type)}</strong><span>${escapeHtml(item.result || "completed")} · ${escapeHtml(item.actor || "Fin")} · ${escapeHtml(formatDate(item.createdAt))}${item.note ? ` · ${escapeHtml(item.note)}` : ""}</span></p>`).join("") : `<p class="muted">No dashboard actions yet.</p>`}</section>
+      ${recordingAllowed ? `<section class="drawer-section recording-section"><h4>Lesson recording</h4>${appointment.recordingSentAt ? `<p>Last sent ${escapeHtml(formatDate(appointment.recordingSentAt))} to ${escapeHtml(appointment.recordingRecipient || "the recorded recipient")}.</p>` : ""}${appointment.recordingUrl ? `<p><a href="${escapeHtml(appointment.recordingUrl)}" target="_blank" rel="noopener noreferrer">Open saved recording link</a></p>` : ""}<p>Use a private or expiring HTTPS link. Confirm the student or guardian authorized sharing it with this recipient.</p><label class="field"><span>Authorized recipient email</span><input id="recordingRecipient" type="email" autocomplete="email" value="${escapeHtml(appointment.recordingRecipient || "")}" required></label><label class="field"><span>Recording link (HTTPS)</span><input id="recordingUrl" type="url" inputmode="url" value="${escapeHtml(appointment.recordingUrl || "")}" placeholder="https://…" required></label><label class="recording-consent"><input id="recordingAuthorized" type="checkbox"><span>I confirm the student or guardian authorized sharing this recording with this recipient.</span></label><button class="btn-secondary" type="button" id="sendRecordingBtn">${appointment.recordingSentAt ? "Send recording again" : "Send recording"}</button></section>` : ""}
+      <section class="drawer-section"><h4>Receipt history</h4>${receipts.length ? receipts.slice(0, 5).map((item) => {
+        const delivery = item.deliveryStatus === "accepted"
+          ? "Accepted by Make; delivery unconfirmed"
+          : item.deliveryStatus === "unknown" || (item.deliveryStatus === undefined && item.sent === null)
+            ? "Delivery not recorded"
+            : item.sent === true || item.deliveryStatus === "sent" ? "Sent" : "Not sent";
+        return `<div class="receipt-history-row"><p class="timeline-row"><strong>${escapeHtml(item.kind || "Email")}</strong><span>${delivery} · ${escapeHtml(formatDate(item.createdAt))}</span></p>${["package", "booking"].includes(item.kind) ? `<button class="btn-secondary" type="button" data-resend-receipt="${escapeHtml(item.id)}">Resend</button>` : ""}</div>`;
+      }).join("") : `<p class="muted">No recorded receipt emails yet.</p>`}</section>
+      <section class="drawer-section"><h4>Internal action history</h4>${actions.length ? actions.slice(0, 5).map((item) => {
+        const resultLabel = item.result === "email_accepted"
+          ? "Email accepted; delivery unconfirmed"
+          : item.result === "completed_email_failed"
+            ? "Booking updated; email failed"
+            : item.result || "completed";
+        return `<p class="timeline-row"><strong>${escapeHtml(item.type)}</strong><span>${escapeHtml(resultLabel)} · ${escapeHtml(item.actor || "Fin")} · ${escapeHtml(formatDate(item.createdAt))}${item.note ? ` · ${escapeHtml(item.note)}` : ""}</span></p>`;
+      }).join("") : `<p class="muted">No dashboard actions yet.</p>`}</section>
     `;
     clientDrawer.querySelector(".drawer-close").addEventListener("click", () => { state.selectedClientEmail = ""; state.selectedAppointmentId = ""; clientDrawer.innerHTML = `<div class="drawer-empty">Select a booking to view the client, package balance, receipt history, and actions.</div>`; renderOperations(); });
+    clientDrawer.querySelectorAll("[data-resend-receipt]").forEach((button) => button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        const result = await api("POST", RECEIPT_API, { receiptId: button.dataset.resendReceipt });
+        showStatus(result.accepted ? "Make accepted the receipt request; delivery is not yet confirmed." : "Receipt sent to the address recorded for this client.");
+        await loadClient(state.selectedClientEmail);
+      } catch (error) {
+        showError(error.message);
+        button.disabled = false;
+        await loadClient(state.selectedClientEmail).catch(() => {});
+      }
+    }));
     clientDrawer.querySelectorAll("[data-client-appointment]").forEach((button) => button.addEventListener("click", () => { state.selectedAppointmentId = button.dataset.clientAppointment; renderClientDrawer(client); renderOperations(); }));
     clientDrawer.querySelector("#linkPackageBtn").addEventListener("click", async () => {
       const certificate = clientDrawer.querySelector("#linkPackageCode").value.trim();
@@ -578,11 +810,31 @@
       await loadOperations();
     });
     clientDrawer.querySelector("#resendBookingBtn").addEventListener("click", () => runAppointmentAction(appointment, "resend").catch((error) => showError(error.message)));
+    clientDrawer.querySelector("#sendRecordingBtn")?.addEventListener("click", () => {
+      const recipientEmail = clientDrawer.querySelector("#recordingRecipient").value.trim();
+      const recordingUrl = clientDrawer.querySelector("#recordingUrl").value.trim();
+      const authorized = clientDrawer.querySelector("#recordingAuthorized").checked;
+      if (!recipientEmail || !recordingUrl || !authorized) {
+        showError("Enter the authorized recipient, recording link, and confirm permission before sending.");
+        return;
+      }
+      runAppointmentAction(appointment, "send-recording", { recipientEmail, recordingUrl, authorized }).catch((error) => showError(error.message));
+    });
     clientDrawer.querySelector("#showRescheduleBtn").addEventListener("click", () => clientDrawer.querySelector("#reschedulePanel").classList.remove("hidden"));
     clientDrawer.querySelector("#cancelBookingBtn").addEventListener("click", () => {
       const note = window.prompt("Optional note to include in the cancellation email:", "") || "";
-      if (window.confirm("Cancel this lesson? This does not issue a refund or restore a package lesson.")) {
+      if (window.confirm("Cancel this lesson? No cash refund is issued automatically. Acuity may return a package credit for a standard cancellation; the balance will be checked again.")) {
         runAppointmentAction(appointment, "cancel", { note }).catch((error) => showError(error.message));
+      }
+    });
+    clientDrawer.querySelector("#noShowBookingBtn").addEventListener("click", () => {
+      if (window.confirm("Confirm the tutor waited at least 20 minutes and the client did not attend? Acuity will mark this as a no-show; check the package balance afterward.")) {
+        runAppointmentAction(appointment, "no-show").catch((error) => showError(error.message));
+      }
+    });
+    clientDrawer.querySelector("#completeBookingBtn").addEventListener("click", () => {
+      if (window.confirm("Confirm that this lesson took place? This records attendance only and does not send a customer email.")) {
+        runAppointmentAction(appointment, "complete").catch((error) => showError(error.message));
       }
     });
     clientDrawer.querySelector("#loadSlotsBtn").addEventListener("click", () => loadAppointmentSlots(appointment).catch((error) => showError(error.message)));
@@ -614,15 +866,21 @@
   }
 
   async function runAppointmentAction(appointment, action, extra = {}) {
-    const result = await api("POST", APPOINTMENT_API, { action, appointmentId: appointment.id, ...extra });
-    showStatus(action === "resend" ? "Customer email resent." : `Booking ${action}d and branded customer email sent.`);
-    await loadOperations();
-    await loadClient(state.selectedClientEmail);
-    return result;
+    if (state.appointmentActionPending) return;
+    state.appointmentActionPending = true;
+    try {
+      const result = await api("POST", APPOINTMENT_API, { action, actionId: crypto.randomUUID(), appointmentId: appointment.id, ...extra });
+      showStatus(result.email?.deliveryStatus === "failed" ? "Booking updated, but the confirmation email could not be accepted. Contact the client directly." : result.accepted ? "Booking updated. Make accepted the email request; delivery is not yet confirmed." : action === "resend" ? "Customer email sent." : action === "send-recording" ? "Recording link sent to the authorized recipient." : action === "no-show" ? "Lesson marked no-show. Check the package balance in Acuity." : action === "complete" ? "Lesson marked completed." : `Booking ${action}d and branded customer email sent.`);
+      await loadOperations();
+      await loadClient(state.selectedClientEmail);
+      return result;
+    } finally {
+      state.appointmentActionPending = false;
+    }
   }
 
   function templateLabel(kind) {
-    return { package: "Package receipt", booking: "Booking confirmation", rescheduled: "Reschedule confirmation", canceled: "Cancellation confirmation" }[kind] || kind;
+    return { package: "Package receipt", booking: "Booking confirmation", rescheduled: "Reschedule confirmation", canceled: "Cancellation confirmation", recording: "Lesson recording" }[kind] || kind;
   }
 
   function currentTemplate() { return state.templates[state.selectedTemplateKind] || {}; }
@@ -646,12 +904,14 @@
   function renderEmailPreview() {
     const values = { recipientName: "Jordan", subject: "English Literature", bookingDate: "Tuesday, 30 September at 16:00", packageCode: "AB12CD34", actionNote: "Please contact Fin if you have any questions." };
     const interpolate = (value) => String(value || "").replace(/\{(\w+)\}/g, (_, key) => values[key] || "");
-    emailPreview.innerHTML = `<p class="eyebrow">Customer preview</p><h3>${escapeHtml(interpolate(templateHeadingInput.value))}</h3><p>${escapeHtml(interpolate(templateMessageInput.value))}</p><div class="email-preview__code">Package code<br><strong>${values.packageCode}</strong></div><button type="button">${escapeHtml(interpolate(templateCtaInput.value))}</button><p class="email-preview__note">${escapeHtml(interpolate(templateNoteInput.value))}</p>`;
+    const packageCode = state.selectedTemplateKind === "recording" ? "" : `<div class="email-preview__code">Package code<br><strong>${values.packageCode}</strong></div>`;
+    emailPreview.innerHTML = `<p class="eyebrow">Customer preview</p><h3>${escapeHtml(interpolate(templateHeadingInput.value))}</h3><p>${escapeHtml(interpolate(templateMessageInput.value))}</p>${packageCode}<button type="button">${escapeHtml(interpolate(templateCtaInput.value))}</button><p class="email-preview__note">${escapeHtml(interpolate(templateNoteInput.value))}</p>`;
   }
 
   async function loadTemplates() {
     const data = await api("GET", TEMPLATE_API);
     state.templates = data.templates || {};
+    state.templatesRevision = data._revision || "";
     state.defaults = data.defaults || {};
     if (!state.templates[state.selectedTemplateKind]) state.selectedTemplateKind = Object.keys(state.templates)[0] || "package";
     renderTemplates();
@@ -721,6 +981,7 @@
   async function loadProofreadingTemplates() {
     const data = await api("GET", PROOF_TEMPLATE_API);
     state.proofreadingTemplates = data.templates || {};
+    state.proofreadingRevision = data._revision || "";
     state.proofreadingDefaults = data.defaults || {};
     if (!state.proofreadingTemplates[state.selectedProofreadingTemplateKind]) state.selectedProofreadingTemplateKind = Object.keys(state.proofreadingTemplates)[0] || "reviewDocument";
     renderProofreadingTemplates();
@@ -780,6 +1041,8 @@
     state.services = bookingData.services || [];
     state.packageCatalog = bookingData.packageCatalog || couponData.packageCatalog || [];
     state.coupons = couponData.coupons || [];
+    state.bookingRevision = bookingData.revision || "";
+    state.couponRevision = couponData._revision || "";
 
     if (!state.selectedSubjectId && state.subjects[0]) {
       state.selectedSubjectId = state.subjects[0].id;
@@ -813,8 +1076,84 @@
   });
 
   refreshBtn.addEventListener("click", () => Promise.all([load(), loadOperations()]).catch((error) => showError(error.message)));
+  backupDownloadBtn.addEventListener("click", async () => {
+    if (!window.confirm("This backup contains private client, booking, and payment records. Download it only to a secure device.")) return;
+    backupDownloadBtn.disabled = true;
+    try {
+      const response = await fetch("/api/admin/backup", { headers: { "x-finbar-admin-key": getAdminKey() } });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401 || response.status === 403) {
+          sessionStorage.removeItem("finbarAdminKey");
+          sessionStorage.removeItem(ADMIN_LAST_ACTIVITY_KEY);
+          window.location.replace("/admin-login.html?reason=expired");
+        }
+        throw new Error(data.error || "Could not create the dashboard backup.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = response.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/i)?.[1] || "finbar-dashboard-backup.json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showStatus("Backup downloaded. Store it securely; this file contains private client records.");
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      backupDownloadBtn.disabled = false;
+    }
+  });
+  backupRestoreFile.addEventListener("change", () => {
+    const file = backupRestoreFile.files?.[0];
+    backupRestoreBtn.disabled = !file;
+    showError(file && file.size > 3.5 * 1024 * 1024 ? "This backup is too large to restore in the dashboard. Keep the original file and ask for help restoring it securely." : "");
+    if (file && file.size > 3.5 * 1024 * 1024) backupRestoreBtn.disabled = true;
+  });
+  backupRestoreBtn.addEventListener("click", async () => {
+    const file = backupRestoreFile.files?.[0];
+    if (!file) return;
+    const section = backupRestoreSection.value;
+    const sectionName = backupRestoreSection.selectedOptions[0]?.textContent || section;
+    if (!window.confirm(`Restore ${sectionName}? This replaces the current ${sectionName.toLowerCase()} from the selected backup.`)) return;
+    if (window.prompt('Type RESTORE to confirm. Download a fresh backup first.') !== "RESTORE") return;
+
+    backupRestoreBtn.disabled = true;
+    showError("");
+    try {
+      let backup;
+      try {
+        backup = JSON.parse(await file.text());
+      } catch {
+        throw new Error("That file is not valid JSON.");
+      }
+      const response = await fetch("/api/admin/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-finbar-admin-key": getAdminKey() },
+        body: JSON.stringify({ action: "restore", confirm: "RESTORE", section, backup })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        if (response.status === 401 || response.status === 403) {
+          sessionStorage.removeItem("finbarAdminKey");
+          sessionStorage.removeItem(ADMIN_LAST_ACTIVITY_KEY);
+          window.location.replace("/admin-login.html?reason=expired");
+        }
+        throw new Error(data.error || "The selected backup section could not be restored.");
+      }
+      backupRestoreFile.value = "";
+      showStatus(`${sectionName} restored. Reopen that dashboard section to refresh its values.`);
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      backupRestoreBtn.disabled = !backupRestoreFile.files?.[0];
+    }
+  });
   logoutBtn.addEventListener("click", () => {
     sessionStorage.removeItem("finbarAdminKey");
+    sessionStorage.removeItem(ADMIN_LAST_ACTIVITY_KEY);
     window.location.replace("/admin-login.html");
   });
 
@@ -932,21 +1271,24 @@
         state.selectedCouponCode = coupon.code;
       }
 
-      const [bookingResult, couponResult] = await Promise.all([
-        api("PUT", BOOKING_API, {
-          version: 1,
-          subjects: state.subjects,
-          services: state.services
-        }),
-        api("PUT", COUPON_API, {
-          coupons: state.coupons
-        })
-      ]);
+      const bookingResult = await api("PUT", BOOKING_API, {
+        version: 1,
+        revision: state.bookingRevision,
+        subjects: state.subjects,
+        services: state.services
+      });
 
       state.subjects = bookingResult.subjects || state.subjects;
       state.services = bookingResult.services || state.services;
       state.packageCatalog = bookingResult.packageCatalog || state.packageCatalog;
+      state.bookingRevision = bookingResult.revision || state.bookingRevision;
+
+      const couponResult = await api("PUT", COUPON_API, {
+        _revision: state.couponRevision,
+        coupons: state.coupons
+      });
       state.coupons = couponResult.coupons || state.coupons;
+      state.couponRevision = couponResult._revision || state.couponRevision;
 
       renderPackageList();
       renderServiceSubjectOptions();
@@ -993,12 +1335,12 @@
   [serviceSubjectInput, serviceFormatInput, serviceTierInput, serviceLabelInput, serviceAppointmentTypeInput, serviceProductInput, serviceCalendarInput, serviceLinkInput, serviceActiveInput, serviceNoteInput].forEach((input) => {
     input.addEventListener("input", () => {
       const service = buildServicePayload();
-      serviceStatus.textContent = service.appointmentTypeID || service.bookingLink ? "Connected" : "Needs mapping";
+      serviceStatus.textContent = serviceConnectionStatus(service);
       renderServiceList();
     });
     input.addEventListener("change", () => {
       const service = buildServicePayload();
-      serviceStatus.textContent = service.appointmentTypeID || service.bookingLink ? "Connected" : "Needs mapping";
+      serviceStatus.textContent = serviceConnectionStatus(service);
       renderServiceList();
     });
   });
@@ -1013,19 +1355,38 @@
   operationSearchInput.addEventListener("input", renderOperations);
   refreshOperationsBtn.addEventListener("click", () => loadOperations().catch((error) => showError(error.message)));
   refreshPricingBtn.addEventListener("click", () => loadPricing().catch((error) => showError(error.message)));
+  priceSubjectSelect.addEventListener("change", () => {
+    const nextSubjectId = priceSubjectSelect.value;
+    try {
+      capturePricingEditor();
+      state.pricingSubjectId = nextSubjectId;
+      renderPricing();
+      showError("");
+    } catch (error) {
+      priceSubjectSelect.value = state.pricingSubjectId;
+      showError(error.message);
+    }
+  });
+  priceUseDefaultInput.addEventListener("change", () => {
+    if (!state.pricingSubjectId) return;
+    if (priceUseDefaultInput.checked) {
+      delete state.pricing.subjectPrices[state.pricingSubjectId];
+    } else {
+      state.pricing.subjectPrices[state.pricingSubjectId] = JSON.parse(JSON.stringify(state.pricing.prices));
+    }
+    renderPricing();
+  });
   savePricingBtn.addEventListener("click", async () => {
     try {
-      const prices = { oneToOne: {}, oneToTwo: {} };
-      priceEditorGrid.querySelectorAll("[data-price-format]").forEach((input) => {
-        const amount = Number(input.value);
-        if (!Number.isFinite(amount) || amount < 0 || amount > 100000) throw new Error(`Enter a valid price for ${priceLabel(input.dataset.priceFormat, input.dataset.priceTier)}.`);
-        prices[input.dataset.priceFormat][input.dataset.priceTier] = Math.round(amount * 100) / 100;
-      });
-      const data = await api("PUT", PRICING_API, { version: 1, currency: "EUR", prices });
-      state.pricing = data.pricing || { currency: "EUR", prices };
+      capturePricingEditor();
+      const data = await api("PUT", PRICING_API, state.pricing);
+      state.pricing = data.pricing || state.pricing;
       state.pricingServices = data.services || state.pricingServices;
       renderPricing();
-      showStatus("Prices saved. Website quotes and new Stripe checkouts now use these amounts.");
+      const mapped = state.pricingServices.filter((service) => service.appointmentTypeID);
+      const unverified = mapped.filter((service) => !Number.isFinite(service.acuityPrice)).length;
+      const mismatches = mapped.filter((service) => service.matchesAcuity === false).length;
+      showStatus(`Saved for new website quotes and Stripe checkouts. Acuity is not automatically updated.${mismatches ? ` ${mismatches} price mismatch${mismatches === 1 ? "" : "es"} need attention.` : ""}${unverified ? ` ${unverified} Acuity price${unverified === 1 ? " could not be verified." : "s could not be verified."}` : ""}`);
     } catch (error) {
       showError(error.message);
     }
@@ -1040,8 +1401,9 @@
       ctaLabel: templateCtaInput.value.trim(),
       extraNote: templateNoteInput.value.trim()
     } };
-    const data = await api("PUT", TEMPLATE_API, { version: 1, templates });
+    const data = await api("PUT", TEMPLATE_API, { version: 1, _revision: state.templatesRevision, templates });
     state.templates = data.templates || templates;
+    state.templatesRevision = data._revision || state.templatesRevision;
     showStatus("Email template saved. Future customer emails will use this wording.");
     renderTemplates();
     fillTemplateEditor();
@@ -1050,6 +1412,7 @@
     if (!window.confirm("Reset this email template to Finbar's default wording?")) return;
     const data = await api("POST", TEMPLATE_API, { kind: state.selectedTemplateKind });
     state.templates = data.templates || state.templates;
+    state.templatesRevision = data._revision || state.templatesRevision;
     showStatus("Email template restored to the default wording.");
     renderTemplates();
     fillTemplateEditor();
@@ -1064,8 +1427,9 @@
       ctaLabel: proofTemplateCtaInput.value.trim(),
       extraNote: proofTemplateNoteInput.value.trim()
     } };
-    const data = await api("PUT", PROOF_TEMPLATE_API, { version: 1, templates });
+    const data = await api("PUT", PROOF_TEMPLATE_API, { version: 1, _revision: state.proofreadingRevision, templates });
     state.proofreadingTemplates = data.templates || templates;
+    state.proofreadingRevision = data._revision || state.proofreadingRevision;
     showStatus("Proofreading email template saved. Future proofreading emails will use this wording.");
     renderProofreadingTemplates();
     fillProofreadingTemplateEditor();
@@ -1074,6 +1438,7 @@
     if (!window.confirm("Reset this proofreading email template to Finbar's default wording?")) return;
     const data = await api("POST", PROOF_TEMPLATE_API, { kind: state.selectedProofreadingTemplateKind });
     state.proofreadingTemplates = data.templates || state.proofreadingTemplates;
+    state.proofreadingRevision = data._revision || state.proofreadingRevision;
     showStatus("Proofreading email template restored to the default wording.");
     renderProofreadingTemplates();
     fillProofreadingTemplateEditor();

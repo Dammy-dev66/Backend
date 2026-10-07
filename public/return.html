@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Payment Complete - Finbar B. Elite Tutoring</title>
+  <title>Payment Status - Finbar B. Elite Tutoring</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -14,12 +14,12 @@
       </a>
     </header>
     <main class="panel">
-      <p class="eyebrow">Payment complete</p>
-      <h1 id="confirmTitle">Your payment was received.</h1>
-      <p class="lede" id="confirmLead">Your confirmation email is on the way.</p>
+      <p class="eyebrow" id="confirmEyebrow">Checking payment</p>
+      <h1 id="confirmTitle">Checking your payment.</h1>
+      <p class="lede" id="confirmLead">Please wait while we confirm the payment and booking.</p>
       <div class="summary" id="confirmSummary"></div>
       <p class="field-error" id="confirmError"></p>
-      <a class="btn-link" id="bookLink" href="/">Go to sessions</a>
+      <a class="btn-link hidden" id="bookLink" href="/">Book again</a>
     </main>
   </div>
   <script>
@@ -31,6 +31,8 @@
         return {};
       }
     })();
+    const eyebrow = document.getElementById("confirmEyebrow");
+    const title = document.getElementById("confirmTitle");
     const lead = document.getElementById("confirmLead");
     const summary = document.getElementById("confirmSummary");
     const error = document.getElementById("confirmError");
@@ -46,26 +48,26 @@
     const productID = params.get("productID") || "";
     const bookingLink = params.get("bookingLink") || saved.bookingLink || "";
     const couponCode = params.get("couponCode") || "";
-    const totalPrice = params.get("totalPrice") || "";
     const source = params.get("source") || "stripe";
-    const isPackageTier = /^pack/i.test(tier);
-    const bookingStep = "1";
 
-    const formatLabel = {
-      oneToOne: "Tutor + one student",
-      oneToTwo: "Tutor + two students"
-    }[format] || format;
-
-    if (bookingLink) {
-      const target = new URL(bookingLink, location.origin);
-      if (isPackageTier) {
-        target.searchParams.set("source", "package");
-        target.searchParams.set("step", bookingStep);
+    function sameOriginLink(value) {
+      if (!String(value || "").trim()) return null;
+      try {
+        const target = new URL(String(value || ""), location.origin);
+        return target.origin === location.origin ? target : null;
+      } catch {
+        return null;
       }
-      bookLink.href = target.toString();
-    } else {
+    }
+
+    function prepareBookAgain(verifiedSubject) {
+      const safeBookingLink = sameOriginLink(bookingLink);
+      if (safeBookingLink) {
+        bookLink.href = safeBookingLink.toString();
+        return;
+      }
       const target = new URL("/", location.origin);
-      if (subject) target.searchParams.set("subject", subject);
+      if (verifiedSubject) target.searchParams.set("subject", verifiedSubject);
       if (format) target.searchParams.set("format", format);
       if (tier) target.searchParams.set("tier", tier);
       if (appointmentTypeID) target.searchParams.set("appointmentTypeID", appointmentTypeID);
@@ -74,29 +76,90 @@
       if (orderID) target.searchParams.set("orderID", orderID);
       if (productID) target.searchParams.set("productID", productID);
       if (couponCode) target.searchParams.set("couponCode", couponCode);
-      target.searchParams.set("source", isPackageTier ? "package" : source);
-      target.searchParams.set("step", bookingStep);
+      target.searchParams.set("source", source);
+      target.searchParams.set("step", "1");
       bookLink.href = target.toString();
     }
-    if (isPackageTier) {
-      lead.textContent = "Your package receipt has been sent to your email address. It contains your package code and a button to book your package sessions.";
-      bookLink.hidden = true;
-    } else {
-      bookLink.textContent = "Book again";
+
+    function renderSummary(data) {
+      summary.replaceChildren();
+      const course = document.createElement("strong");
+      course.textContent = data.subject || "Your lesson";
+      const lessonFormat = { oneToOne: "One student (1:1)", oneToTwo: "Two students (1:2)" }[data.format] || "Lesson";
+      const lessonTier = { trial: "Trial class", single: "Single lesson", pack6: "6-class package", pack12: "12-class package" }[data.tier] || "";
+      summary.append(course, document.createElement("br"), document.createTextNode(`${lessonFormat}${lessonTier ? ` · ${lessonTier}` : ""}`));
+      if (Number.isFinite(data.totalPrice)) {
+        summary.append(document.createElement("br"));
+        const total = document.createElement("span");
+        total.className = "muted";
+        total.textContent = `Total: ${data.currency || "EUR"} ${data.totalPrice.toFixed(2)}`;
+        summary.appendChild(total);
+      }
     }
 
-    function renderSummary() {
-      summary.innerHTML = `
-      <strong>${subject}</strong><br>
-      ${formatLabel || "Booking"}${tier ? ` - ${tier}` : ""}
-      ${totalPrice ? `<br><span class="muted">Total: EUR ${Number(totalPrice).toFixed(2)}</span>` : ""}
-    `;
+    function showUnverified(message) {
+      eyebrow.textContent = "Payment status";
+      title.textContent = "We could not verify this payment.";
+      lead.textContent = message;
+      error.textContent = "Please contact Finbar before trying to pay again.";
+      bookLink.classList.add("hidden");
     }
-    renderSummary();
 
-    if (!params.get("session_id")) {
-      error.textContent = "We could not confirm the payment session in this tab, but the button still takes you back to the custom flow.";
+    async function checkPayment() {
+      const sessionId = params.get("session_id") || "";
+      if (!sessionId) {
+        showUnverified("This page has no checkout session to check.");
+        return;
+      }
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        let data;
+        try {
+          const response = await fetch(`/api/checkout-status?session_id=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+          data = await response.json();
+          if (!response.ok && data.paymentStatus !== "paid") throw new Error(data.error || "Payment status is unavailable.");
+        } catch {
+          showUnverified("We could not check Stripe right now. Your payment may still have succeeded.");
+          return;
+        }
+
+        if (data.paymentStatus !== "paid") {
+          showUnverified("Stripe has not confirmed a payment for this checkout session.");
+          return;
+        }
+        renderSummary(data);
+        error.textContent = "";
+        bookLink.classList.add("hidden");
+        eyebrow.textContent = "Payment received";
+
+        if (data.fulfillmentStatus === "completed") {
+          title.textContent = data.kind === "package" ? "Your package is ready." : "Your lesson is booked.";
+          lead.textContent = data.emailDeliveryStatus === "failed"
+            ? "Your payment and booking are recorded, but the confirmation email needs attention. Contact Finbar before trying to pay again."
+            : data.kind === "package"
+              ? "Check your email for your package code and booking details. Contact Finbar if they do not arrive."
+              : "Check your email for the lesson details. Contact Finbar if they do not arrive.";
+          if (data.kind !== "package") {
+            prepareBookAgain(data.subject || subject);
+            bookLink.classList.remove("hidden");
+          }
+          return;
+        }
+        if (data.fulfillmentStatus === "needs_review" || data.fulfillmentStatus === "unknown") {
+          title.textContent = "Your payment needs a booking check.";
+          lead.textContent = "Stripe received the payment, but we could not confirm the booking. Please contact Finbar before making another payment.";
+          error.textContent = "Your payment should not be submitted again while this is reviewed.";
+          return;
+        }
+
+        title.textContent = "Your payment was received.";
+        lead.textContent = "We are finishing your booking details. Please wait here for confirmation.";
+        if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+      lead.textContent = "Your payment was received, but your booking is still being processed. Contact Finbar if a confirmation does not arrive.";
     }
+
+    checkPayment();
   </script>
 </body>
 </html>

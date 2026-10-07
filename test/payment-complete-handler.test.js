@@ -36,12 +36,15 @@ function loadHandlerWithStub(stub) {
 
 test("payment completion creates a certificate when Acuity creds and productID are present", async () => {
   const calls = [];
+  const originalMockFlag = process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE;
+  process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE = "1";
   const originalUserId = process.env.ACUITY_USER_ID;
   const originalApiKey = process.env.ACUITY_API_KEY;
   process.env.ACUITY_USER_ID = "123";
   process.env.ACUITY_API_KEY = "abc";
 
   const handler = loadHandlerWithStub({
+    acuityCredentials: () => ({ userId: "123", apiKey: "abc" }),
     createCertificate: async (payload) => {
       calls.push(payload);
       return { id: "CERT-1" };
@@ -75,16 +78,21 @@ test("payment completion creates a certificate when Acuity creds and productID a
 
   process.env.ACUITY_USER_ID = originalUserId;
   process.env.ACUITY_API_KEY = originalApiKey;
+  if (originalMockFlag === undefined) delete process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE;
+  else process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE = originalMockFlag;
 });
 
 test("payment completion creates an appointment for direct bookings after payment", async () => {
   const appointmentCalls = [];
+  const originalMockFlag = process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE;
+  process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE = "1";
   const originalUserId = process.env.ACUITY_USER_ID;
   const originalApiKey = process.env.ACUITY_API_KEY;
   process.env.ACUITY_USER_ID = "123";
   process.env.ACUITY_API_KEY = "abc";
 
   const handler = loadHandlerWithStub({
+    acuityCredentials: () => ({ userId: "123", apiKey: "abc" }),
     createAppointment: async (payload) => {
       appointmentCalls.push(payload);
       return { id: "APT-1" };
@@ -138,4 +146,19 @@ test("payment completion creates an appointment for direct bookings after paymen
 
   process.env.ACUITY_USER_ID = originalUserId;
   process.env.ACUITY_API_KEY = originalApiKey;
+  if (originalMockFlag === undefined) delete process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE;
+  else process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE = originalMockFlag;
+});
+
+test("mock payment completion is unavailable without explicit local opt-in", async () => {
+  const originalMockFlag = process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE;
+  delete process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE;
+  const handler = loadHandlerWithStub({});
+  const req = Readable.from([Buffer.from("{}")]);
+  req.method = "POST";
+  req.headers = {};
+  const res = makeResponse();
+  await handler(req, res);
+  assert.equal(res.statusCode, 410);
+  if (originalMockFlag !== undefined) process.env.FINBAR_ENABLE_MOCK_PAYMENT_COMPLETE = originalMockFlag;
 });
