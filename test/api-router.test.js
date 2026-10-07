@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const router = require("../api/[...path]");
+const router = require("../api/router");
 
 function response() {
   return {

@@ -55,7 +55,7 @@ function createResponse(res) {
   return res;
 }
 
-const apiRouter = require(path.join(root, "api", "[...path].js"));
+const apiRouter = require(path.join(root, "api", "router.js"));
 
 const server = http.createServer(async (req, res) => {
   try {
