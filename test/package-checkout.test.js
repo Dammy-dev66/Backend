@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { buildPackageCheckoutUrl } = require("../api/package-checkout");
+const { buildPackageCheckoutUrl } = require("../api-handlers/package-checkout");
 
 test("buildPackageCheckoutUrl keeps the student on the custom checkout bridge", () => {
   const url = buildPackageCheckoutUrl(

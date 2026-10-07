@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { buildPaymentCompleteUrl } = require("../api/payment-complete");
+const { buildPaymentCompleteUrl } = require("../api-handlers/payment-complete");
 
 test("buildPaymentCompleteUrl returns the booking return bridge", () => {
   const url = buildPaymentCompleteUrl(

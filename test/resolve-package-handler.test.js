@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Readable } = require("node:stream");
 
-const handlerPath = require.resolve("../api/resolve-package");
+const handlerPath = require.resolve("../api-handlers/resolve-package");
 const acuityPath = require.resolve("../lib/acuity");
 const stripePath = require.resolve("../lib/stripe");
 const ledgerPath = require.resolve("../lib/operations-ledger");
@@ -28,7 +28,7 @@ test("resolve-package accepts a package code without an email", async () => {
     resolvePackageCertificate: async () => { throw new Error("email lookup should not run"); }
   }};
 
-  const handler = require("../api/resolve-package");
+  const handler = require("../api-handlers/resolve-package");
   const req = Readable.from([Buffer.from(JSON.stringify({
     certificate: "3535CF7E",
     appointmentTypeID: 96938926
@@ -84,7 +84,7 @@ test("resolve-package returns saved details only for the signed receipt link", a
       certificate: "3535CF7E",
       email: "parent@example.com"
     });
-    const handler = require("../api/resolve-package");
+    const handler = require("../api-handlers/resolve-package");
     const req = Readable.from([Buffer.from(JSON.stringify({
       certificate: "3535CF7E",
       email: "parent@example.com",

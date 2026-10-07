@@ -20,7 +20,7 @@ function makeResponse() {
 function loadHandlerWithStub(stub, availableTimes = []) {
   const stripePath = require.resolve("../lib/stripe");
   const acuityPath = require.resolve("../lib/acuity");
-  const handlerPath = require.resolve("../api/create-stripe-session");
+  const handlerPath = require.resolve("../api-handlers/create-stripe-session");
   delete require.cache[stripePath];
   delete require.cache[acuityPath];
   delete require.cache[handlerPath];
@@ -29,7 +29,7 @@ function loadHandlerWithStub(stub, availableTimes = []) {
     hasAcuityCredentials: () => true,
     listAvailabilityTimes: async () => availableTimes
   } };
-  return require("../api/create-stripe-session");
+  return require("../api-handlers/create-stripe-session");
 }
 
 test("create-stripe-session includes the exact sessions link on the Stripe success URL", async () => {

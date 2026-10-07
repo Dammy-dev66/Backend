@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { Readable } = require("node:stream");
 
 const packageJson = require("../package.json");
-const handlerPath = require.resolve("../api/book-with-package");
+const handlerPath = require.resolve("../api-handlers/book-with-package");
 const acuityPath = require.resolve("../lib/acuity");
 const receiptPath = require.resolve("../lib/receipt-email");
 const ledgerPath = require.resolve("../lib/operations-ledger");
@@ -29,7 +29,7 @@ function loadHandlerWithStub(stub) {
   delete require.cache[receiptPath];
   delete require.cache[handlerPath];
   require.cache[acuityPath] = { exports: stub };
-  return require("../api/book-with-package");
+  return require("../api-handlers/book-with-package");
 }
 
 function loadPackageBookingHandler({ ledger, acuity, sendBookingConfirmationEmails, updateLedger }) {
@@ -44,7 +44,7 @@ function loadPackageBookingHandler({ ledger, acuity, sendBookingConfirmationEmai
     updateLedger: updateLedger || (async (mutator) => { await mutator(ledger); return ledger; })
   }};
   require.cache[receiptPath] = { exports: { sendBookingConfirmationEmails } };
-  return require("../api/book-with-package");
+  return require("../api-handlers/book-with-package");
 }
 
 function packageBookingRequest(lessonTime) {
@@ -135,7 +135,7 @@ test("the final package session booking sends one remaining-balance email", asyn
       return { sent: true };
     }
   }};
-  const handler = require("../api/book-with-package");
+  const handler = require("../api-handlers/book-with-package");
   const req = Readable.from([Buffer.from(JSON.stringify({
     datetime: lessonTime,
     appointmentTypeID: 95402039,
@@ -187,7 +187,7 @@ test("a package lesson after the original expiry is rejected before checking ava
     readLedger: async () => ledger
   }};
 
-  const handler = require("../api/book-with-package");
+  const handler = require("../api-handlers/book-with-package");
   const req = Readable.from([Buffer.from(JSON.stringify({
     datetime: lessonTime,
     appointmentTypeID: 95402039,

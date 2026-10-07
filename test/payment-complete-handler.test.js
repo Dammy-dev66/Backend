@@ -27,11 +27,11 @@ function makeResponse() {
 
 function loadHandlerWithStub(stub) {
   const acuityPath = require.resolve("../lib/acuity");
-  const handlerPath = require.resolve("../api/payment-complete");
+  const handlerPath = require.resolve("../api-handlers/payment-complete");
   delete require.cache[acuityPath];
   delete require.cache[handlerPath];
   require.cache[acuityPath] = { exports: stub };
-  return require("../api/payment-complete");
+  return require("../api-handlers/payment-complete");
 }
 
 test("payment completion creates a certificate when Acuity creds and productID are present", async () => {

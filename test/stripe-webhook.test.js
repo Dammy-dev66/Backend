@@ -32,7 +32,7 @@ function loadHandlerWithStubs({ receiptStub, acuityStub, ledger = ledgerFunction
   const receiptPath = require.resolve("../lib/receipt-email");
   const acuityPath = require.resolve("../lib/acuity");
   const ledgerPath = require.resolve("../lib/operations-ledger");
-  const handlerPath = require.resolve("../api/webhooks/stripe");
+  const handlerPath = require.resolve("../api-handlers/webhooks/stripe");
   delete require.cache[receiptPath];
   delete require.cache[acuityPath];
   delete require.cache[ledgerPath];
@@ -44,7 +44,7 @@ function loadHandlerWithStubs({ receiptStub, acuityStub, ledger = ledgerFunction
     readLedger: async () => ledger,
     updateLedger: async (mutator) => { await mutator(ledger); return ledger; }
   } };
-  return require("../api/webhooks/stripe");
+  return require("../api-handlers/webhooks/stripe");
 }
 
 test("stripe webhook sends the package receipt after checkout completion", async () => {

@@ -55,31 +55,17 @@ function createResponse(res) {
   return res;
 }
 
-async function loadApiHandler(routeName) {
-  const filePath = path.join(root, "api", `${routeName}.js`);
-  const exists = fs.existsSync(filePath);
-  if (!exists) {
-    return null;
-  }
-
-  return require(filePath);
-}
+const apiRouter = require(path.join(root, "api", "[...path].js"));
 
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
 
     if (url.pathname.startsWith("/api/")) {
-      const routeName = url.pathname.replace(/^\/api\//, "");
-      const handler = await loadApiHandler(routeName);
-      if (!handler) {
-        res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ ok: false, error: "API route not found." }));
-        return;
-      }
-
       req.url = url.pathname + url.search;
-      await handler(req, createResponse(res));
+      req.query = Object.fromEntries(url.searchParams.entries());
+      req.query.path = url.pathname.replace(/^\/api\//, "").split("/");
+      await apiRouter(req, createResponse(res));
       return;
     }
 

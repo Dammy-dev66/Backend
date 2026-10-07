@@ -43,7 +43,7 @@ test("an exported dashboard backup restores every section in isolated local stor
     const { defaultTemplates, readTemplateState, writeTemplateState } = require("../lib/email-templates");
     const { defaultProofreadingTemplates, readProofreadingTemplateState, writeProofreadingTemplateState } = require("../lib/proofreading-email-templates");
     const { defaultLedger, readLedger, recordAppointment, writeLedger } = require("../lib/operations-ledger");
-    const backupHandler = require("../api/admin/backup");
+    const backupHandler = require("../api-handlers/admin/backup");
     const original = defaultPriceState();
     original.prices.oneToOne.single = 88.25;
     await writePriceState(original);

@@ -12,7 +12,7 @@ function loadHandler({ paymentStatus = "paid", productID = "2253280", event = nu
   const paths = {
     stripe: require.resolve("../lib/stripe"),
     ledger: require.resolve("../lib/operations-ledger"),
-    handler: require.resolve("../api/checkout-status")
+    handler: require.resolve("../api-handlers/checkout-status")
   };
   Object.values(paths).forEach((path) => delete require.cache[path]);
   let retrieved = 0;
@@ -37,7 +37,7 @@ function loadHandler({ paymentStatus = "paid", productID = "2253280", event = nu
       return { stripeEvents: event ? [{ id: `checkout-session:${sessionId}`, ...event }] : [] };
     }
   } };
-  return { handler: require("../api/checkout-status"), calls: () => ({ retrieved, ledgerReads }) };
+  return { handler: require("../api-handlers/checkout-status"), calls: () => ({ retrieved, ledgerReads }) };
 }
 
 async function getStatus(handler, id = sessionId) {

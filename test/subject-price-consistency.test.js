@@ -21,8 +21,8 @@ test("subject override is the amount quoted and charged by Stripe", async () => 
     price: require.resolve("../lib/price-config"),
     acuity: require.resolve("../lib/acuity"),
     stripe: require.resolve("../lib/stripe"),
-    quote: require.resolve("../api/checkout-quote"),
-    checkout: require.resolve("../api/create-stripe-session")
+    quote: require.resolve("../api-handlers/checkout-quote"),
+    checkout: require.resolve("../api-handlers/create-stripe-session")
   };
   const state = priceConfig.defaultPriceState();
   state.subjectPrices["english-literature"] = {
@@ -53,12 +53,12 @@ test("subject override is the amount quoted and charged by Stripe", async () => 
     appointmentTypeID: "96938926",
     productID: "2260532"
   };
-  const quote = await post(require("../api/checkout-quote"), selected);
+  const quote = await post(require("../api-handlers/checkout-quote"), selected);
   assert.equal(quote.statusCode, 200);
   assert.equal(quote.body.subjectId, "english-literature");
   assert.equal(quote.body.totalPrice, 540);
 
-  const checkout = await post(require("../api/create-stripe-session"), {
+  const checkout = await post(require("../api-handlers/create-stripe-session"), {
     ...selected,
     email: "student@example.com",
     quotedTotalCents: Math.round(quote.body.totalPrice * 100)

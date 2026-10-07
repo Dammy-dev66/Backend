@@ -34,7 +34,7 @@ function loadHandler({ appointmentDate, availableDate, packageRecord = null, sav
     config: require.resolve("../lib/booking-config"),
     ledger: require.resolve("../lib/operations-ledger"),
     receipt: require.resolve("../lib/receipt-email"),
-    handler: require.resolve("../api/manage-appointment")
+    handler: require.resolve("../api-handlers/manage-appointment")
   };
   Object.values(paths).forEach((path) => delete require.cache[path]);
   const calls = { availability: [], reschedule: [], cancel: [], email: [] };
@@ -74,7 +74,7 @@ function loadHandler({ appointmentDate, availableDate, packageRecord = null, sav
   require.cache[paths.receipt] = { exports: {
     sendNotificationEmails: async (payload) => { calls.email.push(payload); return { sent: true }; }
   } };
-  return { handler: require("../api/manage-appointment"), calls, ledger };
+  return { handler: require("../api-handlers/manage-appointment"), calls, ledger };
 }
 
 test.beforeEach(() => { process.env.APPOINTMENT_ACCESS_SECRET = "test-only-appointment-secret"; });

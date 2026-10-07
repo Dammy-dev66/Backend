@@ -1,9 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { applyDiscount, resolveBasePrice } = require("../api/checkout-quote");
+const { applyDiscount, resolveBasePrice } = require("../api-handlers/checkout-quote");
 const { Readable } = require("node:stream");
-const quoteHandler = require("../api/checkout-quote");
+const quoteHandler = require("../api-handlers/checkout-quote");
 
 async function requestQuote(body) {
   const req = Readable.from([Buffer.from(JSON.stringify(body))]);

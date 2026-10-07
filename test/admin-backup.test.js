@@ -21,7 +21,7 @@ function response() {
 
 test("pricing backup restore requires admin access and the current storage revision", async () => {
   const pricePath = require.resolve("../lib/price-config");
-  const backupPath = require.resolve("../api/admin/backup");
+  const backupPath = require.resolve("../api-handlers/admin/backup");
   const originalPrice = require.cache[pricePath];
   const originalBackup = require.cache[backupPath];
   const originalKey = process.env.FINBAR_ADMIN_KEY;
@@ -47,7 +47,7 @@ test("pricing backup restore requires admin access and the current storage revis
       }
     } };
     delete require.cache[backupPath];
-    const handler = require("../api/admin/backup");
+    const handler = require("../api-handlers/admin/backup");
 
     const denied = response();
     await handler(request(body), denied);
