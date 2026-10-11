@@ -10,6 +10,10 @@
     return value === undefined || value === null ? "" : String(value).trim();
   }
 
+  function isConnectionUnavailable(message) {
+    return /Acuity is disabled in this test environment|Acuity is not connected(?: to this environment)?(?:\.|\b)|Acuity credentials are not configured/i.test(text(message));
+  }
+
   function inferLessonDetails(name) {
     const value = String(name || "").toLowerCase();
     const format = /(?:1\s*:\s*2|two\s+students?|2\s+students?|pair)/i.test(value)
@@ -42,7 +46,7 @@
     );
   }
 
-  const rules = { findPackageMatches, findRelatedPackages, inferLessonDetails };
+  const rules = { findPackageMatches, findRelatedPackages, inferLessonDetails, isConnectionUnavailable };
   if (typeof module !== "undefined" && module.exports) module.exports = rules;
   else window.AcuityImportRules = rules;
 })();

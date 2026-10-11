@@ -2550,6 +2550,22 @@ h1 {
 .dashboard-load-error strong { font-size: 14px; }
 .dashboard-load-error span { color: #536176; }
 .dashboard-load-error button { margin-top: 5px; }
+.dashboard-load-notice {
+  display: flex;
+  min-height: 130px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid #e1d2ad;
+  background: #fbf7ec;
+  color: #344258;
+  font: 500 13px/1.5 var(--body);
+}
+.dashboard-load-notice strong { font-size: 14px; }
+.dashboard-load-notice span { color: #536176; }
+.dashboard-load-notice button { margin-top: 5px; }
 .client-drawer .reschedule-panel { gap: 12px; margin-top: 14px; padding: 18px; }
 .client-drawer .reschedule-panel h5 { margin: 0; color: #fffdf8; font-size: 15px; }
 .client-drawer .reschedule-panel p,
@@ -2702,6 +2718,8 @@ h1 {
 .acuity-import__price-choice { display: flex; align-items: center; gap: 5px; margin-top: 7px; color: #344258; font-size: 11px; }
 .acuity-import__price-choice input { width: 15px; height: 15px; margin: 0; accent-color: #0a3d91; }
 .acuity-import__notice { padding: 11px 13px; border-left: 3px solid #dda31d; background: #fbf7ec; color: #485366; font-size: 12px; line-height: 1.5; }
+.acuity-import__notice strong { display: inline-block; margin-bottom: 4px; color: #13243b; font-size: 13px; }
+.acuity-import__notice button { display: block; margin-top: 12px; }
 .acuity-import__currency { display: flex; align-items: flex-start; gap: 9px; margin: 16px 0 10px; color: var(--ink); font-size: 12px; font-weight: 600; }
 .acuity-import__currency input { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; accent-color: #0a3d91; }
 .acuity-import__error { padding: 16px; border: 1px solid #e0b9b4; background: #fff5f3; color: #742e2a; font-size: 13px; line-height: 1.5; }

@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { normalizeAcuityImport } = require("../lib/acuity-import");
-const { findPackageMatches, findRelatedPackages, inferLessonDetails } = require("../public/acuity-import-rules");
+const { findPackageMatches, findRelatedPackages, inferLessonDetails, isConnectionUnavailable } = require("../public/acuity-import-rules");
 
 test("Acuity import normalization preserves useful data and treats blank prices as unavailable", () => {
   const normalized = normalizeAcuityImport([
@@ -25,6 +25,13 @@ test("Acuity name suggestions identify format and tier without guessing an unkno
   assert.deepEqual(inferLessonDetails("Tutor + two students - 12-class package"), { format: "oneToTwo", tier: "pack12" });
   assert.deepEqual(inferLessonDetails("AP Psychology - one student - single lesson"), { format: "oneToOne", tier: "single" });
   assert.deepEqual(inferLessonDetails("English session"), { format: "", tier: "" });
+});
+
+test("Acuity connection setup errors are distinguished from unexpected failures", () => {
+  assert.equal(isConnectionUnavailable("Acuity is disabled in this test environment until configured."), true);
+  assert.equal(isConnectionUnavailable("Acuity is not connected to this environment."), true);
+  assert.equal(isConnectionUnavailable("Acuity is not connected. Add the credentials to this deployment."), true);
+  assert.equal(isConnectionUnavailable("Acuity request failed with 502."), false);
 });
 
 test("package matching requires an Acuity appointment product linked to the exact lesson count", () => {

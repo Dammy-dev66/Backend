@@ -922,6 +922,17 @@
         window.setTimeout(() => runTask(refreshOperationsBtn, "Loading bookings", loadOperations), 1800);
       }
     } catch (error) {
+      if (window.AcuityImportRules.isConnectionUnavailable(error.message)) {
+        if (state.operations.length) {
+          state.operationsSyncWarning = "Acuity is disconnected. Showing the last loaded bookings; no booking changes were made.";
+          renderOperations();
+          return;
+        }
+        operationsList.innerHTML = `<div class="dashboard-load-notice" role="status"><strong>Acuity isn’t connected here yet.</strong><span>Connect the right Acuity account to load bookings. No bookings have been changed.</span><button type="button" class="btn-secondary">Try again</button></div>`;
+        operationsList.querySelector("button").addEventListener("click", () => runTask(refreshOperationsBtn, "Loading bookings", loadOperations));
+        adminStatus.textContent = "";
+        return;
+      }
       operationsList.innerHTML = `<div class="dashboard-load-error"><strong>Bookings could not be loaded.</strong><span>Your existing bookings have not been changed.</span><button type="button" class="btn-secondary">Try again</button></div>`;
       operationsList.querySelector("button").addEventListener("click", () => runTask(refreshOperationsBtn, "Loading bookings", loadOperations));
       throw error;
@@ -1438,6 +1449,12 @@
       try {
         [data] = await Promise.all([api("GET", ACUITY_IMPORT_API), state.pricingBaseline ? Promise.resolve() : loadPricing()]);
       } catch (error) {
+        if (window.AcuityImportRules.isConnectionUnavailable(error.message)) {
+          acuityImportBody.innerHTML = `<div class="acuity-import__notice" role="status"><strong>Acuity isn’t connected to this environment yet.</strong><br>Connect the right account before importing. Preview uses a separate test account and never the live tutoring account.<br><button class="btn-secondary" id="retryAcuityImportBtn" type="button">Try again</button></div>`;
+          acuityImportBody.querySelector("#retryAcuityImportBtn").addEventListener("click", openAcuityImport);
+          adminStatus.textContent = "";
+          return;
+        }
         acuityImportBody.innerHTML = `<div class="acuity-import__error"><strong>Could not load Acuity data.</strong><br>${escapeHtml(error.message)}<br><button class="btn-secondary" id="retryAcuityImportBtn" type="button">Try again</button></div>`;
         acuityImportBody.querySelector("#retryAcuityImportBtn").addEventListener("click", openAcuityImport);
         throw error;
