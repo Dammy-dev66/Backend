@@ -169,7 +169,7 @@ test("reconciling an unchanged appointment preserves its ledger timestamp", () =
   assert.equal(ledger.appointments[0].updatedAt, firstUpdatedAt);
 });
 
-test("operations still returns live bookings when ledger reconciliation hits a revision conflict", async () => {
+test("Operations loads live appointments without writing the ledger on every read", async () => {
   const paths = {
     api: require.resolve("../lib/admin-dashboard-api"),
     acuity: require.resolve("../lib/acuity"),
@@ -180,13 +180,14 @@ test("operations still returns live bookings when ledger reconciliation hits a r
   const previousKey = process.env.FINBAR_ADMIN_KEY;
   process.env.FINBAR_ADMIN_KEY = "operations-test-key";
   const conflict = Object.assign(new Error("blob revision conflict"), { statusCode: 409, code: "BLOB_WRITE_CONFLICT" });
+  let writeAttempts = 0;
   delete require.cache[paths.api];
   require.cache[paths.acuity] = { exports: { listAppointments: async () => [{ id: "APT-LIVE", email: "parent@example.com", datetime: "2026-10-02T14:00:00Z", appointmentTypeID: "42" }] } };
   require.cache[paths.booking] = { exports: { readBookingConfig: async () => ({ services: [] }) } };
   require.cache[paths.ledger] = { exports: {
     clientKey: (value) => String(value || "").toLowerCase(),
-    readLedger: async () => defaultLedger(),
-    updateLedger: async () => { throw conflict; },
+    readLedger: async () => ({ ...defaultLedger(), backfillVersion: 2 }),
+    updateLedger: async () => { writeAttempts += 1; throw conflict; },
     upsertPackage() {}, recordAction() {}, recordAppointment() {}, recordReceipt() {}, receiptDeliveryFields() { return {}; }
   } };
   try {
@@ -204,7 +205,8 @@ test("operations still returns live bookings when ledger reconciliation hits a r
     const response = JSON.parse(res.body);
     assert.equal(res.statusCode, 200);
     assert.equal(response.appointments[0].id, "APT-LIVE");
-    assert.match(response.syncWarning, /Bookings are shown below/);
+    assert.equal(response.syncWarning, "");
+    assert.equal(writeAttempts, 0);
   } finally {
     delete require.cache[paths.api];
     for (const [key, path] of Object.entries(paths)) {
