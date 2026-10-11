@@ -1805,6 +1805,39 @@ h1 {
   padding: 9px 13px;
 }
 
+.dashboard-saving {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  color: #536176;
+  font: 600 12px/1.2 var(--body);
+  white-space: nowrap;
+}
+
+.dashboard-saving.hidden { display: none; }
+.dashboard-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 2px solid #d3dce8;
+  border-top-color: #0047ab;
+  border-radius: 50%;
+  animation: dashboard-save-spin .7s linear infinite;
+}
+
+.admin-toolbar button.is-working { opacity: .78; cursor: progress; }
+.dashboard-feedback .field-hint:not(:empty) {
+  border: 1px solid #d9d5cc;
+  border-radius: 4px;
+  background: #fffdf8;
+  padding: 11px 14px;
+  color: #536176;
+  line-height: 1.45;
+}
+
+@keyframes dashboard-save-spin { to { transform: rotate(360deg); } }
+
 .dashboard-signout {
   min-height: 38px;
   padding: 9px 13px;

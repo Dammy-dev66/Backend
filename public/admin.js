@@ -48,6 +48,8 @@
   const couponList = document.getElementById("couponList");
   const adminError = document.getElementById("adminError");
   const adminStatus = document.getElementById("adminStatus");
+  const dashboardSaving = document.getElementById("dashboardSaving");
+  const dashboardSavingText = document.getElementById("dashboardSavingText");
   const refreshBtn = document.getElementById("refreshBtn");
   const backupDownloadBtn = document.getElementById("backupDownloadBtn");
   const backupRestoreFile = document.getElementById("backupRestoreFile");
@@ -162,6 +164,8 @@
     pricingServices: [],
     bookingRevision: "",
     couponRevision: "",
+    bookingBaseline: { subjects: [], services: [] },
+    couponBaseline: [],
     pricingSubjectId: "",
     useDefaultPricing: false,
     search: {
@@ -184,12 +188,61 @@
   }
 
   function showError(message) {
+    if (/changed while you were editing|newer edit|removed by someone else|already exists with different details/i.test(String(message || ""))) {
+      adminError.textContent = "";
+      adminError.classList.add("hidden");
+      showStatus(message);
+      return;
+    }
     adminError.textContent = message;
     adminError.classList.toggle("hidden", !message);
   }
 
   function showStatus(message) {
     adminStatus.textContent = message || "";
+  }
+
+  function setBusy(isBusy, label = "") {
+    dashboardSaving.classList.toggle("hidden", !isBusy);
+    dashboardSavingText.textContent = label;
+    refreshBtn.disabled = isBusy;
+    saveBtn.disabled = isBusy;
+    refreshBtn.classList.toggle("is-working", isBusy && label.startsWith("Refreshing"));
+    saveBtn.classList.toggle("is-working", isBusy && label.startsWith("Saving"));
+  }
+
+  function isRevisionConflict(error) {
+    return error?.status === 409 || /record changed while you were editing|revision conflict/i.test(error?.message || "");
+  }
+
+  function mergeBookingDraft(latest) {
+    return {
+      subjects: AdminMerge.mergeRecords(state.bookingBaseline.subjects, state.subjects, latest.subjects || [], "id", ["name", "slug", "label", "note", "active", "order"], "This subject"),
+      services: AdminMerge.mergeRecords(state.bookingBaseline.services, state.services, latest.services || [], "id", ["subjectId", "format", "tier", "label", "appointmentTypeID", "productID", "calendarID", "bookingLink", "note", "active"], "This lesson type")
+    };
+  }
+
+  async function saveBookingDraft() {
+    const draft = { subjects: state.subjects, services: state.services };
+    try {
+      return await api("PUT", BOOKING_API, { version: 1, revision: state.bookingRevision, ...draft });
+    } catch (error) {
+      if (!isRevisionConflict(error)) throw error;
+      const latest = await api("GET", BOOKING_API);
+      const merged = mergeBookingDraft(latest);
+      return api("PUT", BOOKING_API, { version: 1, revision: latest.revision || "", ...merged });
+    }
+  }
+
+  async function saveCouponDraft() {
+    try {
+      return await api("PUT", COUPON_API, { _revision: state.couponRevision, coupons: state.coupons });
+    } catch (error) {
+      if (!isRevisionConflict(error)) throw error;
+      const latest = await api("GET", COUPON_API);
+      const merged = AdminMerge.mergeRecords(state.couponBaseline, state.coupons, latest.coupons || [], "code", ["percent", "label", "message", "packageKeys", "active"], "This coupon");
+      return api("PUT", COUPON_API, { _revision: latest._revision || "", coupons: merged });
+    }
   }
 
   function currentSubject() {
@@ -1049,6 +1102,8 @@
     state.coupons = couponData.coupons || [];
     state.bookingRevision = bookingData.revision || "";
     state.couponRevision = couponData._revision || "";
+    state.bookingBaseline = { subjects: structuredClone(state.subjects), services: structuredClone(state.services) };
+    state.couponBaseline = structuredClone(state.coupons);
 
     if (!state.selectedSubjectId && state.subjects[0]) {
       state.selectedSubjectId = state.subjects[0].id;
@@ -1081,7 +1136,20 @@
     button.addEventListener("click", () => setTab(button.dataset.tab));
   });
 
-  refreshBtn.addEventListener("click", () => Promise.all([load(), loadOperations()]).catch((error) => showError(error.message)));
+  refreshBtn.addEventListener("click", async () => {
+    if (refreshBtn.disabled) return;
+    showError("");
+    setBusy(true, "Refreshing dashboard");
+    showStatus("Refreshing saved settings and bookings...");
+    try {
+      await Promise.all([load(), loadOperations()]);
+      showStatus("Dashboard refreshed.");
+    } catch (error) {
+      showError(error.message || "Refresh did not complete. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  });
   backupDownloadBtn.addEventListener("click", async () => {
     if (!window.confirm("This backup contains private client, booking, and payment records. Download it only to a secure device.")) return;
     backupDownloadBtn.disabled = true;
@@ -1246,7 +1314,10 @@
   });
 
   saveBtn.addEventListener("click", async () => {
+    if (saveBtn.disabled) return;
     showError("");
+    setBusy(true, "Saving changes");
+    showStatus("Saving your changes...");
     try {
       const subject = buildSubjectPayload();
       const service = buildServicePayload();
@@ -1277,24 +1348,18 @@
         state.selectedCouponCode = coupon.code;
       }
 
-      const bookingResult = await api("PUT", BOOKING_API, {
-        version: 1,
-        revision: state.bookingRevision,
-        subjects: state.subjects,
-        services: state.services
-      });
+      const bookingResult = await saveBookingDraft();
 
       state.subjects = bookingResult.subjects || state.subjects;
       state.services = bookingResult.services || state.services;
       state.packageCatalog = bookingResult.packageCatalog || state.packageCatalog;
       state.bookingRevision = bookingResult.revision || state.bookingRevision;
+      state.bookingBaseline = { subjects: structuredClone(state.subjects), services: structuredClone(state.services) };
 
-      const couponResult = await api("PUT", COUPON_API, {
-        _revision: state.couponRevision,
-        coupons: state.coupons
-      });
+      const couponResult = await saveCouponDraft();
       state.coupons = couponResult.coupons || state.coupons;
       state.couponRevision = couponResult._revision || state.couponRevision;
+      state.couponBaseline = structuredClone(state.coupons);
 
       renderPackageList();
       renderServiceSubjectOptions();
@@ -1308,6 +1373,8 @@
       showStatus("Dashboard settings saved.");
     } catch (error) {
       showError(error.message);
+    } finally {
+      setBusy(false);
     }
   });
 

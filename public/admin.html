@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=20261011-operations-sync">
+  <link rel="stylesheet" href="/styles.css?v=20261011-save-feedback">
 </head>
 <body>
   <div class="admin-workspace">
@@ -42,6 +42,7 @@
           <h1 id="dashboardTitle">Operations</h1>
         </div>
         <div class="admin-toolbar">
+          <span class="dashboard-saving hidden" id="dashboardSaving" role="status" aria-live="polite"><span class="dashboard-spinner" aria-hidden="true"></span><span id="dashboardSavingText">Saving</span></span>
           <button class="btn-secondary dashboard-refresh" id="refreshBtn" type="button">Refresh</button>
           <button class="btn-primary hidden" id="saveBtn" type="button">Save changes</button>
           <button class="btn-secondary dashboard-signout" id="logoutBtn" type="button">Sign out</button>
@@ -337,6 +338,7 @@
       </div>
     </main>
   </div>
-  <script src="/admin.js?v=20261011-operations-sync"></script>
+  <script src="/admin-merge.js?v=20261011-save-feedback"></script>
+  <script src="/admin.js?v=20261011-save-feedback"></script>
 </body>
 </html>
