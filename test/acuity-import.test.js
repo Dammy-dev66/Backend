@@ -108,7 +108,7 @@ test("Acuity import preview reports a missing connection without making upstream
     const response = { statusCode: 0, body: "", setHeader() {}, writeHead(code) { this.statusCode = code; }, end(body) { this.body = String(body); } };
     await require(apiPath).handleDashboardResource({ method: "GET", headers: { "x-finbar-admin-key": "acuity-import-test-key" } }, response, "acuity-import");
     assert.equal(response.statusCode, 503);
-    assert.match(JSON.parse(response.body).error, /Acuity is not connected/);
+    assert.match(JSON.parse(response.body).error, /dedicated test account configured with ACUITY_PREVIEW_USER_ID and ACUITY_PREVIEW_API_KEY/);
     assert.equal(reads, 0);
   } finally {
     if (originalKey === undefined) delete process.env.FINBAR_ADMIN_KEY;

@@ -277,6 +277,8 @@ Use these in Vercel and local development:
 ```txt
 ACUITY_USER_ID=your_numeric_acuity_user_id
 ACUITY_API_KEY=rotate_and_add_your_acuity_api_key_here
+ACUITY_PREVIEW_USER_ID=your_preview_acuity_user_id
+ACUITY_PREVIEW_API_KEY=your_preview_acuity_api_key
 ALLOWED_ORIGINS=https://your-carrd-site.example,https://your-custom-domain.example
 STRIPE_SECRET_KEY=sk_test_or_live_key
 STRIPE_WEBHOOK_SECRET=whsec_your_stripe_webhook_secret
@@ -293,6 +295,7 @@ ALLOW_FULL_PRICE_FALLBACK=false
 Notes:
 
 - `STRIPE_SECRET_KEY` is required for live checkout.
+- Production uses `ACUITY_USER_ID` and `ACUITY_API_KEY`. Preview and local development require a separate Acuity test account using `ACUITY_PREVIEW_USER_ID` and `ACUITY_PREVIEW_API_KEY`; production Acuity credentials are intentionally not reused there.
 - `STRIPE_WEBHOOK_SECRET` is required if the Stripe webhook should verify signed payloads.
 - `MAKE_RECEIPT_WEBHOOK_URL` tells the backend where to send the email payload after payment.
 - `FINBAR_RECEIPT_COPY_TO` sends Fin a copy of the same receipt/confirmation email.
