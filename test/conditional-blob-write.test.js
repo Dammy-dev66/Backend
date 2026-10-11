@@ -63,3 +63,50 @@ test("an ETag mismatch is reported as a retryable revision conflict", async () =
     helper.restore();
   }
 });
+
+test("ledger updates recover after repeated short-lived Blob revision conflicts", async () => {
+  const operationsPath = require.resolve("../lib/operations-ledger");
+  const originalOperations = require.cache[operationsPath];
+  const originalBlob = require.cache[blobPath];
+  const originalHelper = require.cache[helperPath];
+  const previousVercel = process.env.VERCEL;
+  const previousVercelEnv = process.env.VERCEL_ENV;
+  let content = JSON.stringify({ version: 1, packages: [], receipts: [], appointments: [], actions: [], stripeEvents: [], policySnapshots: [], lastBackfillAt: "", backfillVersion: 2, stripeBackfillCursor: "", backfillError: "" });
+  let etag = "revision-0";
+  let attempts = 0;
+  process.env.VERCEL = "1";
+  delete process.env.VERCEL_ENV;
+  require.cache[blobPath] = { exports: { get: async () => ({
+    statusCode: 200,
+    stream: new ReadableStream({ start(controller) { controller.enqueue(Buffer.from(content)); controller.close(); } }),
+    blob: { etag }
+  }) } };
+  require.cache[helperPath] = { exports: {
+    conditionalBlobWrite: async (_pathname, body) => {
+      attempts += 1;
+      if (attempts <= 5) throw Object.assign(new Error("revision conflict"), { statusCode: 409 });
+      content = body;
+      etag = `revision-${attempts}`;
+      return { etag };
+    }
+  } };
+  delete require.cache[operationsPath];
+  try {
+    const { updateLedger } = require("../lib/operations-ledger");
+    const result = await updateLedger((state) => {
+      state.lastBackfillAt = "2026-10-11T00:00:00.000Z";
+      return state;
+    });
+    assert.equal(attempts, 6);
+    assert.equal(result.lastBackfillAt, "2026-10-11T00:00:00.000Z");
+  } finally {
+    delete require.cache[operationsPath];
+    if (originalOperations) require.cache[operationsPath] = originalOperations;
+    if (originalBlob) require.cache[blobPath] = originalBlob; else delete require.cache[blobPath];
+    if (originalHelper) require.cache[helperPath] = originalHelper; else delete require.cache[helperPath];
+    if (previousVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previousVercel;
+    if (previousVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previousVercelEnv;
+  }
+});
