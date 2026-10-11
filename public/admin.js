@@ -1345,14 +1345,8 @@
   function productOptions(row) {
     const requiredCount = row.tier === "pack6" ? 6 : row.tier === "pack12" ? 12 : 0;
     const id = String(row.source.id);
-    const matches = (state.acuityImportProducts || []).filter((product) =>
-      String(product.type).toLowerCase() === "appointments" &&
-      product.appointmentTypeIDs.includes(id) &&
-      Number(product.appointmentTypeCounts[id]) === requiredCount
-    );
-    const related = (state.acuityImportProducts || []).filter((product) =>
-      String(product.type).toLowerCase() === "appointments" && product.appointmentTypeIDs.includes(id)
-    );
+    const matches = window.AcuityImportRules.findPackageMatches(state.acuityImportProducts, id, requiredCount);
+    const related = window.AcuityImportRules.findRelatedPackages(state.acuityImportProducts, id);
     const choices = matches.length ? matches : related.length ? related : (state.acuityImportProducts || []).filter((product) => String(product.type).toLowerCase() === "appointments");
     row.productChoices = choices;
     if (row.productID && !choices.some((product) => String(product.id) === String(row.productID))) row.productID = "";

@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { findPackageMatches, inferLessonDetails, normalizeAcuityImport } = require("../lib/acuity-import");
+const { normalizeAcuityImport } = require("../lib/acuity-import");
+const { findPackageMatches, findRelatedPackages, inferLessonDetails } = require("../public/acuity-import-rules");
 
 test("Acuity import normalization preserves useful data and treats blank prices as unavailable", () => {
   const normalized = normalizeAcuityImport([
@@ -35,6 +36,7 @@ test("package matching requires an Acuity appointment product linked to the exac
   assert.deepEqual(findPackageMatches(products, 101, 6).map((item) => item.id), ["p6"]);
   assert.deepEqual(findPackageMatches(products, "101", 12).map((item) => item.id), ["p12"]);
   assert.deepEqual(findPackageMatches(products, "101", 3), []);
+  assert.deepEqual(findRelatedPackages(products, "101").map((item) => item.id), ["p6", "p12"]);
 });
 
 test("protected Acuity import preview reads appointment types and products and never accepts writes", async () => {
