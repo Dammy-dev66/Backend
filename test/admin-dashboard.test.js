@@ -298,6 +298,79 @@ test("Stripe backfill checkpoints each page and completes without duplicate rece
   }
 });
 
+test("Operations fetches Stripe backfill before retrying a ledger write", async () => {
+  const paths = {
+    api: require.resolve("../lib/admin-dashboard-api"),
+    acuity: require.resolve("../lib/acuity"),
+    booking: require.resolve("../lib/booking-config"),
+    ledger: require.resolve("../lib/operations-ledger"),
+    stripe: require.resolve("../lib/stripe")
+  };
+  const originals = Object.fromEntries(Object.entries(paths).map(([key, path]) => [key, require.cache[path]]));
+  const previousKey = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "operations-test-key";
+  let stripeCalls = 0;
+  let writeAttempts = 0;
+  const session = { id: "cs_backfill", created: 1790000000, payment_status: "paid", metadata: { email: "parent@example.com", productID: "product-1" } };
+  const conflict = Object.assign(new Error("revision changed"), { statusCode: 409, code: "BLOB_WRITE_CONFLICT" });
+  delete require.cache[paths.api];
+  require.cache[paths.acuity] = { exports: { listAppointments: async () => [] } };
+  require.cache[paths.booking] = { exports: { readBookingConfig: async () => ({ services: [] }) } };
+  require.cache[paths.ledger] = { exports: {
+    clientKey: (value) => String(value || "").toLowerCase(),
+    readLedger: async () => defaultLedger(),
+    updateLedger: async (mutator) => {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        writeAttempts += 1;
+        const state = defaultLedger();
+        const updated = await mutator(state) || state;
+        try {
+          if (attempt === 0) throw conflict;
+          return updated;
+        } catch (error) {
+          if (error.statusCode !== 409) throw error;
+        }
+      }
+      throw conflict;
+    },
+    upsertPackage,
+    recordAction,
+    recordAppointment,
+    recordReceipt,
+    receiptDeliveryFields: () => ({})
+  } };
+  require.cache[paths.stripe] = { exports: {
+    isSessionPaid,
+    getStripeClient: () => ({ checkout: { sessions: { list: async () => { stripeCalls += 1; return { has_more: false, data: [session] }; } } } })
+  } };
+  try {
+    const { handleOperations } = require("../lib/admin-dashboard-api");
+    const req = { method: "GET", headers: { "x-finbar-admin-key": "operations-test-key" }, url: "/api/admin/coupons?resource=operations" };
+    const res = {
+      statusCode: 0,
+      body: "",
+      headers: {},
+      setHeader(name, value) { this.headers[name] = value; },
+      writeHead(statusCode) { this.statusCode = statusCode; return this; },
+      end(body) { this.body = String(body || ""); return this; }
+    };
+    await handleOperations(req, res);
+    const response = JSON.parse(res.body);
+    assert.equal(res.statusCode, 200);
+    assert.equal(response.syncWarning, "");
+    assert.equal(response.backfillVersion, 2);
+    assert.equal(stripeCalls, 1);
+    assert.equal(writeAttempts, 2);
+  } finally {
+    delete require.cache[paths.api];
+    for (const [key, path] of Object.entries(paths)) {
+      if (originals[key]) require.cache[path] = originals[key]; else delete require.cache[path];
+    }
+    if (previousKey === undefined) delete process.env.FINBAR_ADMIN_KEY;
+    else process.env.FINBAR_ADMIN_KEY = previousKey;
+  }
+});
+
 test("all dashboard email templates are delivered through the existing Make payload", async () => {
   const calls = [];
   const originalFetch = global.fetch;
