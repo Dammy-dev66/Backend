@@ -48,7 +48,10 @@
   const couponList = document.getElementById("couponList");
   const adminError = document.getElementById("adminError");
   const adminStatus = document.getElementById("adminStatus");
+  const dashboardActivity = document.getElementById("dashboardActivity");
+  const dashboardActivityText = document.getElementById("dashboardActivityText");
   const refreshBtn = document.getElementById("refreshBtn");
+  const discardBtn = document.getElementById("discardBtn");
   const backupDownloadBtn = document.getElementById("backupDownloadBtn");
   const backupRestoreFile = document.getElementById("backupRestoreFile");
   const backupRestoreSection = document.getElementById("backupRestoreSection");
@@ -102,6 +105,7 @@
   const priceSubjectSelect = document.getElementById("priceSubjectSelect");
   const priceUseDefaultWrap = document.getElementById("priceUseDefaultWrap");
   const priceUseDefaultInput = document.getElementById("priceUseDefaultInput");
+  const priceSubjectHint = document.getElementById("priceSubjectHint");
   const popupHeadingInput = document.getElementById("popupHeadingInput");
   const popupPack6Input = document.getElementById("popupPack6Input");
   const popupPack12Input = document.getElementById("popupPack12Input");
@@ -147,6 +151,7 @@
     fulfillmentIssues: [],
     actionIssues: [],
     backfillError: "",
+    operationsSyncWarning: "",
     selectedClientEmail: "",
     appointmentActionPending: false,
     templates: {},
@@ -158,11 +163,17 @@
     proofreadingDefaults: {},
     selectedProofreadingTemplateKind: "reviewDocument",
     pricing: { currency: "EUR", prices: {}, subjectPrices: {}, popup: {} },
+    pricingBaseline: "",
     pricingServices: [],
     bookingRevision: "",
     couponRevision: "",
+    bookingBaseline: { subjects: [], services: [] },
+    couponBaseline: [],
+    setupLoaded: false,
     pricingSubjectId: "",
     useDefaultPricing: false,
+    dirtyTabs: new Set(),
+    pendingTasks: 0,
     search: {
       subjects: "",
       services: "",
@@ -183,12 +194,76 @@
   }
 
   function showError(message) {
-    adminError.textContent = message;
+    const detail = String(message || "");
+    if (/record changed while you were editing|newer edit|changed by someone else|removed by someone else|already exists with different details/i.test(detail)) {
+      adminError.textContent = "Someone saved a newer version while you were editing. Your draft is still on screen. Refresh to see the latest saved values, then reapply your change.";
+      adminError.classList.add("hidden");
+      adminStatus.textContent = adminError.textContent;
+      if (!state.pendingTasks) setActivity("dirty", "Draft needs review");
+      return;
+    }
+    adminError.textContent = /record changed while you were editing/i.test(detail)
+      ? "Your changes were not saved because a newer version exists. Your edits are still on screen. Copy them before refreshing; refresh replaces the draft with the latest saved version."
+      : detail;
     adminError.classList.toggle("hidden", !message);
+    if (message) setActivity("error", "Action needed");
   }
 
   function showStatus(message) {
     adminStatus.textContent = message || "";
+    if (message && !state.pendingTasks && adminError.classList.contains("hidden")) {
+      if (/^loading/i.test(message)) setActivity("loading", "Loading");
+      else setActivity("saved", /saved|restored|downloaded/i.test(message) ? "Saved" : "Ready");
+    }
+  }
+
+  function setActivity(kind, label) {
+    dashboardActivity.dataset.state = kind;
+    dashboardActivityText.textContent = label;
+  }
+
+  function markDirty(tab = state.tab) {
+    state.dirtyTabs.add(tab);
+    showError("");
+    discardBtn.classList.toggle("hidden", !state.dirtyTabs.has(state.tab));
+    setActivity("dirty", "Unsaved changes");
+  }
+
+  function clearDirty(tab = state.tab) {
+    state.dirtyTabs.delete(tab);
+    discardBtn.classList.toggle("hidden", !state.dirtyTabs.has(state.tab));
+    if (!state.pendingTasks) setActivity("saved", "Saved");
+  }
+
+  async function runTask(button, label, work) {
+    if (button?.disabled) return;
+    state.pendingTasks += 1;
+    const originalLabel = button?.textContent;
+    const priorStatus = adminStatus.textContent;
+    if (button) {
+      button.disabled = true;
+      button.classList.add("is-working");
+      button.textContent = label;
+    }
+    showError("");
+    setActivity("loading", label);
+    try {
+      return await work();
+    } catch (error) {
+      showError(error.message || "This action did not complete. Please try again.");
+    } finally {
+      state.pendingTasks -= 1;
+      if (button) {
+        button.disabled = false;
+        button.classList.remove("is-working");
+        button.textContent = originalLabel;
+      }
+      if (!state.pendingTasks && adminError.classList.contains("hidden")) {
+        const dirty = state.dirtyTabs.has(state.tab);
+        const saved = adminStatus.textContent !== priorStatus && /saved|restored|downloaded/i.test(adminStatus.textContent);
+        setActivity(dirty ? "dirty" : "saved", dirty ? "Unsaved changes" : saved ? "Saved" : "Ready");
+      }
+    }
   }
 
   function currentSubject() {
@@ -204,19 +279,33 @@
   }
 
   function setTab(tab) {
+    if (tab !== state.tab && state.dirtyTabs.has(state.tab)) {
+      showError("Save or discard your edits before opening another section.");
+      return false;
+    }
+    if (tab === state.tab && state.dirtyTabs.has(tab)) return true;
+    if (tab !== state.tab) showStatus("");
     state.tab = tab;
     const selectedTab = tabButtons.find((btn) => btn.dataset.tab === tab);
-    tabButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
+    tabButtons.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === tab);
+      if (btn.dataset.tab === tab) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
+    });
     tabPanels.forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== tab));
     if (selectedTab) {
       dashboardTitle.textContent = selectedTab.dataset.title || selectedTab.textContent.trim();
       dashboardKicker.textContent = selectedTab.dataset.kicker || "Booking dashboard";
     }
     saveBtn.classList.toggle("hidden", !["subjects", "services", "coupons"].includes(tab));
-    if (getAdminKey() && tab === "operations") loadOperations().catch((error) => showError(error.message));
-    if (getAdminKey() && tab === "pricing") loadPricing().catch((error) => showError(error.message));
-    if (getAdminKey() && tab === "templates") loadTemplates().catch((error) => showError(error.message));
-    if (getAdminKey() && tab === "proofreading-templates") loadProofreadingTemplates().catch((error) => showError(error.message));
+    discardBtn.classList.toggle("hidden", !state.dirtyTabs.has(tab));
+    showError("");
+    if (!state.dirtyTabs.has(tab)) setActivity("saved", "Ready");
+    if (getAdminKey() && tab === "operations") runTask(refreshOperationsBtn, "Loading bookings", loadOperations);
+    if (getAdminKey() && tab === "pricing") runTask(refreshPricingBtn, "Loading prices", loadPricing);
+    if (getAdminKey() && tab === "templates") runTask(null, "Loading email templates", loadTemplates);
+    if (getAdminKey() && tab === "proofreading-templates") runTask(null, "Loading proofreading emails", loadProofreadingTemplates);
+    return true;
   }
 
   function renderPackageList() {
@@ -238,7 +327,10 @@
     state.pricing.prices = state.pricing.prices || {};
     state.pricing.subjectPrices = state.pricing.subjectPrices || {};
     state.pricing.popup = state.pricing.popup || {};
-    const options = [`<option value="">Shared defaults</option>`, ...state.subjects.map((subject) => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name)}</option>`)];
+    const options = [`<option value="">Shared defaults</option>`, ...state.subjects.map((subject) => {
+      const priceMode = state.pricing.subjectPrices[subject.id] ? "Individual prices" : "Shared prices";
+      return `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name)} - ${priceMode}</option>`;
+    })];
     priceSubjectSelect.innerHTML = options.join("");
     if (!state.subjects.some((subject) => subject.id === state.pricingSubjectId)) state.pricingSubjectId = "";
     priceSubjectSelect.value = state.pricingSubjectId;
@@ -246,9 +338,16 @@
     state.useDefaultPricing = Boolean(state.pricingSubjectId && !overrides);
     priceUseDefaultWrap.classList.toggle("hidden", !state.pricingSubjectId);
     priceUseDefaultInput.checked = state.useDefaultPricing;
+    if (priceSubjectHint) {
+      priceSubjectHint.textContent = !state.pricingSubjectId
+        ? "Shared defaults apply only to subjects without their own price matrix. Choose a subject and turn off shared defaults to price it independently."
+        : state.useDefaultPricing
+          ? "This subject currently inherits shared prices. Turn off the checkbox above to create prices used only by this subject's popup and checkout."
+          : "These prices apply only to this subject's popup and checkout. Acuity appointment-type prices must still be updated separately.";
+    }
     const prices = state.pricingSubjectId && overrides ? overrides : state.pricing.prices;
-    const keys = ["oneToOne", "oneToTwo"].flatMap((format) => ["trial", "single", "pack6", "pack12"].map((tier) => ({ format, tier })));
-    priceEditorGrid.innerHTML = keys.map(({ format, tier }) => `<label class="price-editor-field"><span>${escapeHtml(priceLabel(format, tier))}</span><div><b>EUR</b><input type="number" min="0" max="100000" step="0.01" inputmode="decimal" data-price-format="${format}" data-price-tier="${tier}" value="${Number(prices?.[format]?.[tier] ?? 0).toFixed(2)}"${state.useDefaultPricing ? " disabled" : ""}></div></label>`).join("");
+    const tiers = { trial: "Trial class", single: "Single lesson", pack6: "6-class package", pack12: "12-class package" };
+    priceEditorGrid.innerHTML = `<div class="price-matrix__head"><span>Lesson type</span><span>One student (1:1)</span><span>Two students (1:2)</span></div>${Object.entries(tiers).map(([tier, label]) => `<div class="price-matrix__row"><strong>${label}</strong>${["oneToOne", "oneToTwo"].map((format) => `<label class="price-matrix__amount"><span class="sr-only">${escapeHtml(priceLabel(format, tier))} EUR</span><span aria-hidden="true">EUR</span><input type="number" min="0" max="100000" step="0.01" inputmode="decimal" data-price-format="${format}" data-price-tier="${tier}" value="${Number(prices?.[format]?.[tier] ?? 0).toFixed(2)}"${state.useDefaultPricing ? " disabled" : ""}></label>`).join("")}</div>`).join("")}`;
     popupHeadingInput.value = state.pricing.popup.heading || "";
     popupPack6Input.value = state.pricing.popup.packageNotes?.pack6 || "";
     popupPack12Input.value = state.pricing.popup.packageNotes?.pack12 || "";
@@ -271,9 +370,33 @@
   async function loadPricing() {
     const data = await api("GET", PRICING_API);
     state.pricing = data.pricing || state.pricing;
+    state.pricingBaseline = pricingContent(state.pricing);
     state.pricing.subjectPrices = state.pricing.subjectPrices || {};
     state.pricingServices = data.services || [];
     renderPricing();
+  }
+
+  function pricingContent(pricing) {
+    return JSON.stringify({ version: pricing?.version, currency: pricing?.currency, prices: pricing?.prices, subjectPrices: pricing?.subjectPrices, popup: pricing?.popup });
+  }
+
+  async function savePricingWithRevisionCheck(draft) {
+    try {
+      return await api("PUT", PRICING_API, draft);
+    } catch (error) {
+      if (!/record changed while you were editing/i.test(error.message || "")) throw error;
+      const latest = await api("GET", PRICING_API);
+      if (!latest.pricing?._revision) throw error;
+      const merged = window.AdminMerge.mergeObject(
+        JSON.parse(state.pricingBaseline),
+        JSON.parse(pricingContent(draft)),
+        JSON.parse(pricingContent(latest.pricing)),
+        "Pricing settings"
+      );
+      const result = await api("PUT", PRICING_API, { ...merged, _revision: latest.pricing._revision });
+      showStatus("A newer save was detected. Your non-conflicting price and popup edits were safely merged and saved.");
+      return result;
+    }
   }
 
   function readPriceMatrix() {
@@ -365,6 +488,33 @@
     };
   }
 
+  async function saveBookingWithRevisionCheck(subjects, services) {
+    try {
+      return await api("PUT", BOOKING_API, { version: 1, revision: state.bookingRevision, subjects, services });
+    } catch (error) {
+      if (!/record changed while you were editing/i.test(error.message || "")) throw error;
+      const latest = await api("GET", BOOKING_API);
+      const mergedSubjects = window.AdminMerge.mergeRecords(state.bookingBaseline.subjects, subjects, latest.subjects || [], "id", ["name", "slug", "label", "note", "order", "active"], "This subject");
+      const mergedServices = window.AdminMerge.mergeRecords(state.bookingBaseline.services, services, latest.services || [], "id", ["subjectId", "format", "tier", "label", "appointmentTypeID", "productID", "calendarID", "bookingLink", "note", "order", "active"], "This lesson type");
+      const result = await api("PUT", BOOKING_API, { version: 1, revision: latest.revision, subjects: mergedSubjects, services: mergedServices });
+      showStatus("A newer save was detected. Your non-conflicting changes were safely merged and saved.");
+      return result;
+    }
+  }
+
+  async function saveCouponsWithRevisionCheck(coupons) {
+    try {
+      return await api("PUT", COUPON_API, { _revision: state.couponRevision, coupons });
+    } catch (error) {
+      if (!/record changed while you were editing/i.test(error.message || "")) throw error;
+      const latest = await api("GET", COUPON_API);
+      const merged = window.AdminMerge.mergeRecords(state.couponBaseline, coupons, latest.coupons || [], "code", ["percent", "label", "message", "active", "packageKeys"], "This coupon");
+      const result = await api("PUT", COUPON_API, { _revision: latest._revision, coupons: merged });
+      showStatus("A newer save was detected. Your non-conflicting changes were safely merged and saved.");
+      return result;
+    }
+  }
+
   function fillSubjectEditor(subject) {
     const record = copySubject(subject);
     subjectNameInput.value = record.name;
@@ -441,6 +591,7 @@
         <small>${serviceCount} lesson type(s) - ${mappedCount} mapped</small>
       `;
       row.addEventListener("click", () => {
+        if (state.dirtyTabs.has("subjects") && subject.id !== state.selectedSubjectId) return showError("Save or discard this subject before selecting another.");
         state.selectedSubjectId = subject.id;
         fillSubjectEditor(subject);
         renderSubjectList();
@@ -487,7 +638,13 @@
     groups.forEach((services, subjectName) => {
       const group = document.createElement("details");
       group.className = "service-group";
-      group.open = Boolean(query || subjectFilter || services.some((service) => service.id === state.selectedServiceId));
+      group.open = Boolean(subjectFilter || services.some((service) => service.id === state.selectedServiceId));
+      group.addEventListener("toggle", () => {
+        if (!group.open) return;
+        serviceList.querySelectorAll(".service-group[open]").forEach((openGroup) => {
+          if (openGroup !== group) openGroup.open = false;
+        });
+      });
 
       const summary = document.createElement("summary");
       const title = document.createElement("strong");
@@ -511,6 +668,7 @@
         mapping.textContent = `${service.appointmentTypeID ? `Acuity ID ${service.appointmentTypeID}` : service.bookingLink ? "External link only - not price-connected" : "Needs Acuity ID"}${service.active === false ? " - inactive" : ""}`;
         row.append(label, detail, mapping);
         row.addEventListener("click", () => {
+          if (state.dirtyTabs.has("services") && service.id !== state.selectedServiceId) return showError("Save or discard this lesson type before selecting another.");
           state.selectedServiceId = service.id;
           fillServiceEditor(service);
           renderServiceList();
@@ -547,6 +705,7 @@
         <small>${coupon.packageKeys.join(", ") || "All packages"}</small>
       `;
       row.addEventListener("click", () => {
+        if (state.dirtyTabs.has("coupons") && coupon.code !== state.selectedCouponCode) return showError("Save or discard this coupon before selecting another.");
         state.selectedCouponCode = coupon.code;
         fillCouponEditor(coupon);
         renderCoupons();
@@ -674,9 +833,13 @@
     const backfillMarkup = state.backfillError
       ? `<strong>Stripe history import incomplete</strong><span>Some older package records may be missing. Refresh bookings to retry the import.</span><small>${escapeHtml(state.backfillError)}</small>`
       : "";
-    fulfillmentIssues.innerHTML = hasIssues
-      ? `${actionMarkup}${paymentMarkup}${backfillMarkup}`
+    const syncWarningMarkup = state.operationsSyncWarning
+      ? `<strong>Bookings loaded; details are catching up</strong><span>${escapeHtml(state.operationsSyncWarning)}</span>`
       : "";
+    fulfillmentIssues.innerHTML = hasIssues
+      ? `${actionMarkup}${paymentMarkup}${backfillMarkup}${syncWarningMarkup}`
+      : syncWarningMarkup;
+    fulfillmentIssues.classList.toggle("hidden", !hasIssues && !syncWarningMarkup);
     fulfillmentIssues.querySelectorAll("[data-reconcile-action]").forEach((button) => button.addEventListener("click", async () => {
       const resolution = button.dataset.packageResolution || "";
       let appointmentId = button.dataset.appointmentId || "";
@@ -728,15 +891,23 @@
   }
 
   async function loadOperations() {
-    const data = await api("GET", OPERATIONS_API);
-    state.operations = data.appointments || [];
-    state.operationsSummary = data.summary || {};
-    state.fulfillmentIssues = data.fulfillmentIssues || [];
-    state.actionIssues = data.actionIssues || [];
-    state.backfillError = data.backfillError || "";
-    renderOperations();
-    if (data.backfillPending) {
-      window.setTimeout(() => loadOperations().catch((error) => showError(error.message)), 500);
+    if (!state.operations.length) operationsList.innerHTML = `<div class="dashboard-loading"><span class="dashboard-loading__spinner" aria-hidden="true"></span>Loading bookings...</div>`;
+    try {
+      const data = await api("GET", OPERATIONS_API);
+      state.operations = data.appointments || [];
+      state.operationsSummary = data.summary || {};
+      state.fulfillmentIssues = data.fulfillmentIssues || [];
+      state.actionIssues = data.actionIssues || [];
+      state.backfillError = data.backfillError || "";
+      state.operationsSyncWarning = data.syncWarning || "";
+      renderOperations();
+      if (data.backfillPending) {
+        window.setTimeout(() => runTask(refreshOperationsBtn, "Loading bookings", loadOperations), 1800);
+      }
+    } catch (error) {
+      operationsList.innerHTML = `<div class="dashboard-load-error"><strong>Bookings could not be loaded.</strong><span>Your existing bookings have not been changed.</span><button type="button" class="btn-secondary">Try again</button></div>`;
+      operationsList.querySelector("button").addEventListener("click", () => runTask(refreshOperationsBtn, "Loading bookings", loadOperations));
+      throw error;
     }
   }
 
@@ -754,20 +925,37 @@
     const receipts = client.receipts || [];
     const actions = client.actions || [];
     const activeAppointment = !appointment.canceled && appointment.status !== "Completed";
-    const changeAllowed = appointment.datetime && Date.now() < new Date(appointment.datetime).getTime() && activeAppointment;
+    const lateRefundReady = appointment.withinLateChangeWindow && !appointment.lateChangeRefunded && appointment.hasRecordedPayment && Number.isInteger(appointment.lateChangeRefundMinor) && appointment.lateChangeRefundMinor > 0;
+    const lateRefundInstruction = appointment.lateChangeRefunded
+      ? "A 50% late-change refund is already recorded for this booking; another refund cannot be applied."
+      : appointment.lateChangeRefundRetryable
+        ? "A prior booking change failed after the refund was issued. Reuse that same Stripe refund ID to retry; do not issue another refund."
+        : `Within 12 hours: issue the exact 50% refund in Stripe first${appointment.lateChangeRefundMinor !== null ? ` (${formatEurMinor(appointment.lateChangeRefundMinor)})` : " · payment amount unavailable"}, then enter its refund ID when rescheduling.`;
+    const fullRefundRequired = !appointment.withinLateChangeWindow && appointment.hasRecordedPayment && !appointment.hasPackageEntitlement && ["single", "trial"].includes(appointment.tier);
+    const fullRefundRetryable = fullRefundRequired && appointment.refundRetryable;
+    const fullRefundReady = fullRefundRequired && Number.isInteger(appointment.earlyCancellationRefundMinor) && appointment.earlyCancellationRefundMinor > 0 && (!appointment.refundAlreadyRecorded || fullRefundRetryable);
+    const refundRequired = appointment.withinLateChangeWindow || fullRefundRequired;
+    const refundAmount = appointment.withinLateChangeWindow ? appointment.lateChangeRefundMinor : appointment.earlyCancellationRefundMinor;
+    const refundHelp = appointment.lateChangeRefundRetryable || fullRefundRetryable
+      ? "Reuse the Stripe refund ID from the earlier attempt. Do not issue another refund."
+      : `Issue the ${formatEurMinor(refundAmount)} refund in Stripe first, then enter its refund ID here.`;
+    const refundField = refundRequired ? `<label class="field"><span>Stripe refund ID</span><input class="action-refund-id" type="text" placeholder="re_..."><small>${escapeHtml(refundHelp)}</small></label>` : "";
+    const changeAllowed = appointment.datetime && Date.now() < new Date(appointment.datetime).getTime() && activeAppointment && (!appointment.withinLateChangeWindow || lateRefundReady);
+    const cancelAllowed = changeAllowed && !(appointment.withinLateChangeWindow && appointment.hasPackageEntitlement) && (!fullRefundRequired || fullRefundReady);
     const noShowAllowed = appointment.datetime && Date.now() >= new Date(appointment.datetime).getTime() + 20 * 60 * 1000 && activeAppointment;
     const completeAllowed = appointment.datetime && Date.now() >= new Date(appointment.datetime).getTime() && !appointment.canceled && appointment.status !== "Completed";
     const recordingAllowed = appointment.format === "oneToTwo" && appointment.status === "Completed";
     clientDrawer.innerHTML = `
       <div class="drawer-head"><div><span class="eyebrow">Client record</span><h3>${escapeHtml(appointment.clientName)}</h3><a href="mailto:${escapeHtml(client.email)}">${escapeHtml(client.email)}</a></div><button type="button" class="drawer-close" aria-label="Close client details">×</button></div>
-      <div class="client-booking"><strong>${escapeHtml(appointment.subject)}</strong><span>${escapeHtml(formatDate(appointment.datetime))}</span><small>${escapeHtml(appointment.status)}</small>${appointment.expiresAt ? `<small>Lesson entitlement expires ${escapeHtml(formatDate(appointment.expiresAt))}</small>` : ""}${appointment.policyAcceptedAt ? `<small>Lesson terms accepted ${escapeHtml(formatDate(appointment.policyAcceptedAt))}${appointment.policyVersion ? ` · version ${escapeHtml(appointment.policyVersion.slice(0, 8))}` : ""}</small>` : ""}${appointment.withinLateChangeWindow ? `<small class="policy-warning">Within 12 hours: 50% refund rule applies${appointment.lateChangeRefundMinor !== null ? ` · ${escapeHtml(formatEurMinor(appointment.lateChangeRefundMinor))} based on recorded payment` : " · payment record unavailable"}</small>` : ""}</div>
+      <div class="client-booking"><strong>${escapeHtml(appointment.subject)}</strong><span>${escapeHtml(formatDate(appointment.datetime))}</span><small>${escapeHtml(appointment.status)}</small>${appointment.expiresAt ? `<small>Lesson entitlement expires ${escapeHtml(formatDate(appointment.expiresAt))}</small>` : ""}${appointment.policyAcceptedAt ? `<small>Lesson terms accepted ${escapeHtml(formatDate(appointment.policyAcceptedAt))}${appointment.policyVersion ? ` · version ${escapeHtml(appointment.policyVersion.slice(0, 8))}` : ""}</small>` : ""}${appointment.withinLateChangeWindow ? `<small class="policy-warning">${escapeHtml(lateRefundInstruction)} ${appointment.hasPackageEntitlement ? "Late cancellation stays blocked here because Acuity may restore the package credit." : "The dashboard verifies the refund before changing this booking."}</small>` : fullRefundRequired ? `<small class="policy-warning">${fullRefundRetryable ? "The previous cancellation attempt failed after the refund. Reuse its existing Stripe refund ID; do not issue another refund." : appointment.refundAlreadyRecorded ? "A refund is already recorded for this lesson; cancellation is blocked to prevent a duplicate." : Number.isInteger(appointment.earlyCancellationRefundMinor) && appointment.earlyCancellationRefundMinor > 0 ? `For a free early cancellation, issue a full Stripe refund of ${formatEurMinor(appointment.earlyCancellationRefundMinor)} first, then enter its refund ID.` : "The original payment amount is unavailable; cancellation needs manual payment review."}</small>` : ""}</div>
       <section class="drawer-section"><h4>Client bookings</h4>${(client.appointments || []).map((item) => `<button class="client-appointment${item.id === appointment.id ? " active" : ""}" type="button" data-client-appointment="${escapeHtml(item.id)}"><strong>${escapeHtml(item.subject)}</strong><span>${escapeHtml(formatDate(item.datetime))}</span><small>${escapeHtml(item.status)}</small>${item.policyAcceptedAt ? `<small>Terms accepted ${escapeHtml(formatDate(item.policyAcceptedAt))}</small>` : ""}</button>`).join("")}</section>
       <section class="drawer-section"><h4>Package balance</h4>${packages.length ? packages.map((item) => `<div class="package-balance"><strong>${escapeHtml(item.certificate || "Package code pending")}</strong><span>${Number.isFinite(item.remaining) ? `${item.remaining} lesson${item.remaining === 1 ? "" : "s"} remaining` : "Check completed when this record opened"}</span>${item.tier && item.purchasedAt ? `<small>${escapeHtml(item.tier)} · purchased ${escapeHtml(formatDate(item.purchasedAt))}${!item.linkedManually ? ` · expires ${escapeHtml(formatDate(packageExpiryDate(item)))}` : " · expiry not recorded"}</small>` : ""}</div>`).join("") : `<p class="muted">No linked package yet.</p>`}
         <details class="link-package"><summary>Link an older package</summary><div class="link-package__fields"><input id="linkPackageCode" placeholder="Package code"><input id="linkPackageType" placeholder="Appointment type ID" value="${escapeHtml(appointment.appointmentTypeID)}"><button class="btn-secondary" type="button" id="linkPackageBtn">Link package</button></div></details>
       </section>
       <section class="drawer-section"><h4>Booking actions</h4>
-        <div class="action-grid"><button class="btn-secondary" type="button" id="resendBookingBtn">Resend email</button><button class="btn-secondary" type="button" id="showRescheduleBtn"${changeAllowed ? "" : " disabled"}>Reschedule</button><button class="btn-danger" type="button" id="cancelBookingBtn"${changeAllowed ? "" : " disabled"}>Cancel lesson</button><button class="btn-secondary" type="button" id="completeBookingBtn"${completeAllowed ? "" : " disabled"}>Mark completed</button><button class="btn-secondary" type="button" id="noShowBookingBtn"${noShowAllowed ? "" : " disabled"} title="${noShowAllowed ? "" : "Available after the appointment start plus 20 minutes"}">Mark no-show</button></div>
-        <div class="reschedule-panel hidden" id="reschedulePanel"><label class="field"><span>New date</span><input id="rescheduleDate" type="date"></label><button class="btn-secondary" id="loadSlotsBtn" type="button">Show available times</button><select id="rescheduleTime" class="hidden"></select><input id="rescheduleNote" class="hidden" placeholder="Optional note for the client"><button class="btn-primary hidden" id="confirmRescheduleBtn" type="button">Confirm reschedule</button></div>
+        <div class="action-grid"><button class="btn-secondary" type="button" id="resendBookingBtn">Resend email</button><button class="btn-secondary" type="button" id="showRescheduleBtn"${changeAllowed ? "" : " disabled"}>Reschedule</button><button class="btn-danger" type="button" id="cancelBookingBtn"${cancelAllowed ? "" : " disabled"}>Cancel lesson</button><button class="btn-secondary" type="button" id="completeBookingBtn"${completeAllowed ? "" : " disabled"}>Mark completed</button><button class="btn-secondary" type="button" id="noShowBookingBtn"${noShowAllowed ? "" : " disabled"} title="${noShowAllowed ? "" : "Available after the appointment start plus 20 minutes"}">Mark no-show</button></div>
+        <div class="reschedule-panel hidden" id="reschedulePanel"><h5>Move this lesson</h5><label class="field"><span>New date</span><input id="rescheduleDate" type="date"></label><button class="btn-secondary" id="loadSlotsBtn" type="button">Show available times</button><label class="field hidden" id="rescheduleTimeWrap"><span>Available times</span><select id="rescheduleTime"></select></label><label class="field hidden" id="rescheduleNoteWrap"><span>Note for the client (optional)</span><input id="rescheduleNote" type="text" placeholder="Add a short note"></label>${appointment.withinLateChangeWindow ? `<div class="reschedule-refund">${refundField}</div>` : ""}<button class="btn-primary hidden" id="confirmRescheduleBtn" type="button">Confirm new time</button></div>
+        <div class="reschedule-panel hidden" id="cancelPanel"><h5>Cancel this lesson</h5><p>${refundRequired ? escapeHtml(refundHelp) : "The lesson will be canceled in Acuity. No refund is issued automatically."}</p>${refundRequired ? `<div class="cancel-refund">${refundField}</div>` : ""}<label class="field"><span>Note for the client (optional)</span><textarea id="cancelNote" rows="3" placeholder="Explain the cancellation if needed"></textarea></label><button class="btn-danger" id="confirmCancelBtn" type="button">Confirm cancellation</button></div>
       </section>
       ${recordingAllowed ? `<section class="drawer-section recording-section"><h4>Lesson recording</h4>${appointment.recordingSentAt ? `<p>Last sent ${escapeHtml(formatDate(appointment.recordingSentAt))} to ${escapeHtml(appointment.recordingRecipient || "the recorded recipient")}.</p>` : ""}${appointment.recordingUrl ? `<p><a href="${escapeHtml(appointment.recordingUrl)}" target="_blank" rel="noopener noreferrer">Open saved recording link</a></p>` : ""}<p>Use a private or expiring HTTPS link. Confirm the student or guardian authorized sharing it with this recipient.</p><label class="field"><span>Authorized recipient email</span><input id="recordingRecipient" type="email" autocomplete="email" value="${escapeHtml(appointment.recordingRecipient || "")}" required></label><label class="field"><span>Recording link (HTTPS)</span><input id="recordingUrl" type="url" inputmode="url" value="${escapeHtml(appointment.recordingUrl || "")}" placeholder="https://…" required></label><label class="recording-consent"><input id="recordingAuthorized" type="checkbox"><span>I confirm the student or guardian authorized sharing this recording with this recipient.</span></label><button class="btn-secondary" type="button" id="sendRecordingBtn">${appointment.recordingSentAt ? "Send recording again" : "Send recording"}</button></section>` : ""}
       <section class="drawer-section"><h4>Receipt history</h4>${receipts.length ? receipts.slice(0, 5).map((item) => {
@@ -788,27 +976,26 @@
       }).join("") : `<p class="muted">No dashboard actions yet.</p>`}</section>
     `;
     clientDrawer.querySelector(".drawer-close").addEventListener("click", () => { state.selectedClientEmail = ""; state.selectedAppointmentId = ""; clientDrawer.innerHTML = `<div class="drawer-empty">Select a booking to view the client, package balance, receipt history, and actions.</div>`; renderOperations(); });
-    clientDrawer.querySelectorAll("[data-resend-receipt]").forEach((button) => button.addEventListener("click", async () => {
-      button.disabled = true;
-      try {
+    clientDrawer.querySelectorAll("[data-resend-receipt]").forEach((button) => button.addEventListener("click", () => runTask(button, "Sending receipt", async () => {
         const result = await api("POST", RECEIPT_API, { receiptId: button.dataset.resendReceipt });
         showStatus(result.accepted ? "Make accepted the receipt request; delivery is not yet confirmed." : "Receipt sent to the address recorded for this client.");
-        await loadClient(state.selectedClientEmail);
-      } catch (error) {
-        showError(error.message);
-        button.disabled = false;
-        await loadClient(state.selectedClientEmail).catch(() => {});
-      }
-    }));
+        try { await loadClient(state.selectedClientEmail); }
+        catch { showError("The receipt request succeeded, but the client details could not refresh. Do not resend it yet."); }
+      })));
     clientDrawer.querySelectorAll("[data-client-appointment]").forEach((button) => button.addEventListener("click", () => { state.selectedAppointmentId = button.dataset.clientAppointment; renderClientDrawer(client); renderOperations(); }));
-    clientDrawer.querySelector("#linkPackageBtn").addEventListener("click", async () => {
+    clientDrawer.querySelector("#linkPackageBtn").addEventListener("click", (event) => runTask(event.currentTarget, "Linking package", async () => {
       const certificate = clientDrawer.querySelector("#linkPackageCode").value.trim();
       const appointmentTypeID = clientDrawer.querySelector("#linkPackageType").value.trim();
+      if (!certificate || !appointmentTypeID) throw new Error("Enter the package code and its Acuity appointment type ID.");
       await api("POST", CLIENT_API, { email: client.email, certificate, appointmentTypeID, subject: appointment.subject, format: appointment.format, tier: appointment.tier });
       showStatus("Package linked. Its balance will now be checked.");
-      await loadClient(client.email);
-      await loadOperations();
-    });
+      try {
+        await loadClient(client.email);
+        await loadOperations();
+      } catch {
+        showError("The package was linked, but the latest balance could not be loaded. Refresh the dashboard; do not link it again.");
+      }
+    }));
     clientDrawer.querySelector("#resendBookingBtn").addEventListener("click", () => runAppointmentAction(appointment, "resend").catch((error) => showError(error.message)));
     clientDrawer.querySelector("#sendRecordingBtn")?.addEventListener("click", () => {
       const recipientEmail = clientDrawer.querySelector("#recordingRecipient").value.trim();
@@ -820,11 +1007,20 @@
       }
       runAppointmentAction(appointment, "send-recording", { recipientEmail, recordingUrl, authorized }).catch((error) => showError(error.message));
     });
-    clientDrawer.querySelector("#showRescheduleBtn").addEventListener("click", () => clientDrawer.querySelector("#reschedulePanel").classList.remove("hidden"));
+    clientDrawer.querySelector("#showRescheduleBtn").addEventListener("click", () => {
+      clientDrawer.querySelector("#cancelPanel").classList.add("hidden");
+      clientDrawer.querySelector("#reschedulePanel").classList.toggle("hidden");
+    });
     clientDrawer.querySelector("#cancelBookingBtn").addEventListener("click", () => {
-      const note = window.prompt("Optional note to include in the cancellation email:", "") || "";
-      if (window.confirm("Cancel this lesson? No cash refund is issued automatically. Acuity may return a package credit for a standard cancellation; the balance will be checked again.")) {
-        runAppointmentAction(appointment, "cancel", { note }).catch((error) => showError(error.message));
+      clientDrawer.querySelector("#reschedulePanel").classList.add("hidden");
+      clientDrawer.querySelector("#cancelPanel").classList.toggle("hidden");
+    });
+    clientDrawer.querySelector("#confirmCancelBtn").addEventListener("click", () => {
+      const stripeRefundId = clientDrawer.querySelector("#cancelPanel .action-refund-id")?.value.trim() || "";
+      if (refundRequired && !stripeRefundId) return showError("Enter the Stripe refund ID before canceling this lesson.");
+      const note = clientDrawer.querySelector("#cancelNote").value.trim();
+      if (window.confirm("Cancel this lesson in Acuity and send the customer a cancellation email?")) {
+        runAppointmentAction(appointment, "cancel", { note, ...(stripeRefundId ? { stripeRefundId } : {}) }).catch((error) => showError(error.message));
       }
     });
     clientDrawer.querySelector("#noShowBookingBtn").addEventListener("click", () => {
@@ -837,17 +1033,28 @@
         runAppointmentAction(appointment, "complete").catch((error) => showError(error.message));
       }
     });
-    clientDrawer.querySelector("#loadSlotsBtn").addEventListener("click", () => loadAppointmentSlots(appointment).catch((error) => showError(error.message)));
+    clientDrawer.querySelector("#loadSlotsBtn").addEventListener("click", (event) => runTask(event.currentTarget, "Finding times", () => loadAppointmentSlots(appointment)));
     clientDrawer.querySelector("#confirmRescheduleBtn").addEventListener("click", () => {
       const datetime = clientDrawer.querySelector("#rescheduleTime").value;
       const note = clientDrawer.querySelector("#rescheduleNote").value.trim();
-      if (datetime) runAppointmentAction(appointment, "reschedule", { datetime, calendarID: appointment.calendarID, note }).catch((error) => showError(error.message));
+      const stripeRefundId = clientDrawer.querySelector("#reschedulePanel .action-refund-id")?.value.trim() || "";
+      if (appointment.withinLateChangeWindow && !stripeRefundId) return showError("Enter the Stripe refund ID before moving this lesson.");
+      if (datetime && window.confirm(`Move this lesson to ${formatDate(datetime)} and send the customer an updated confirmation?`)) {
+        runAppointmentAction(appointment, "reschedule", { datetime, calendarID: appointment.calendarID, note, ...(stripeRefundId ? { stripeRefundId } : {}) }).catch((error) => showError(error.message));
+      }
     });
   }
 
   async function loadClient(email) {
-    const data = await api("GET", `${CLIENT_API}&email=${encodeURIComponent(email)}`);
-    renderClientDrawer(data);
+    clientDrawer.innerHTML = `<div class="dashboard-loading"><span class="dashboard-loading__spinner" aria-hidden="true"></span>Loading client details...</div>`;
+    try {
+      const data = await api("GET", `${CLIENT_API}&email=${encodeURIComponent(email)}`);
+      if (state.selectedClientEmail === email) renderClientDrawer(data);
+    } catch (error) {
+      clientDrawer.innerHTML = `<div class="dashboard-load-error"><strong>Client details could not be loaded.</strong><span>No booking has been changed.</span><button type="button" class="btn-secondary">Try again</button></div>`;
+      clientDrawer.querySelector("button").addEventListener("click", () => runTask(null, "Loading client details", () => loadClient(email)));
+      throw error;
+    }
   }
 
   async function loadAppointmentSlots(appointment) {
@@ -860,8 +1067,8 @@
       const datetime = slot.datetime || slot.time || slot;
       return `<option value="${escapeHtml(datetime)}">${escapeHtml(formatDate(datetime))}</option>`;
     }).join("") : `<option value="">No times available</option>`;
-    select.classList.remove("hidden");
-    clientDrawer.querySelector("#rescheduleNote").classList.remove("hidden");
+    clientDrawer.querySelector("#rescheduleTimeWrap").classList.remove("hidden");
+    clientDrawer.querySelector("#rescheduleNoteWrap").classList.remove("hidden");
     clientDrawer.querySelector("#confirmRescheduleBtn").classList.toggle("hidden", !slots.length);
   }
 
@@ -869,11 +1076,18 @@
     if (state.appointmentActionPending) return;
     state.appointmentActionPending = true;
     try {
-      const result = await api("POST", APPOINTMENT_API, { action, actionId: crypto.randomUUID(), appointmentId: appointment.id, ...extra });
-      showStatus(result.email?.deliveryStatus === "failed" ? "Booking updated, but the confirmation email could not be accepted. Contact the client directly." : result.accepted ? "Booking updated. Make accepted the email request; delivery is not yet confirmed." : action === "resend" ? "Customer email sent." : action === "send-recording" ? "Recording link sent to the authorized recipient." : action === "no-show" ? "Lesson marked no-show. Check the package balance in Acuity." : action === "complete" ? "Lesson marked completed." : `Booking ${action}d and branded customer email sent.`);
-      await loadOperations();
-      await loadClient(state.selectedClientEmail);
-      return result;
+      const button = document.activeElement?.closest?.("button") || null;
+      return await runTask(button, "Updating booking", async () => {
+        const result = await api("POST", APPOINTMENT_API, { action, actionId: crypto.randomUUID(), appointmentId: appointment.id, ...extra });
+        showStatus(result.email?.deliveryStatus === "failed" ? "Booking updated, but the confirmation email could not be accepted. Contact the client directly." : result.accepted ? "Booking updated. Make accepted the email request; delivery is not yet confirmed." : action === "resend" ? "Customer email sent." : action === "send-recording" ? "Recording link sent to the authorized recipient." : action === "no-show" ? "Lesson marked no-show. Check the package balance in Acuity." : action === "complete" ? "Lesson marked completed." : `Booking ${action}d and branded customer email sent.`);
+        try {
+          await loadOperations();
+          await loadClient(state.selectedClientEmail);
+        } catch {
+          showError("The booking action succeeded, but the latest details could not be loaded. Refresh the dashboard; do not repeat the action.");
+        }
+        return result;
+      });
     } finally {
       state.appointmentActionPending = false;
     }
@@ -898,7 +1112,12 @@
 
   function renderTemplates() {
     templateList.innerHTML = Object.keys(state.templates).map((kind) => `<button class="record-row${kind === state.selectedTemplateKind ? " active" : ""}" type="button" data-template-kind="${kind}"><strong>${templateLabel(kind)}</strong><span>Customer-facing email</span></button>`).join("");
-    templateList.querySelectorAll("[data-template-kind]").forEach((button) => button.addEventListener("click", () => { state.selectedTemplateKind = button.dataset.templateKind; renderTemplates(); fillTemplateEditor(); }));
+    templateList.querySelectorAll("[data-template-kind]").forEach((button) => button.addEventListener("click", () => {
+      if (state.dirtyTabs.has("templates") && button.dataset.templateKind !== state.selectedTemplateKind) return showError("Save or discard this email before selecting another.");
+      state.selectedTemplateKind = button.dataset.templateKind;
+      renderTemplates();
+      fillTemplateEditor();
+    }));
   }
 
   function renderEmailPreview() {
@@ -909,13 +1128,20 @@
   }
 
   async function loadTemplates() {
-    const data = await api("GET", TEMPLATE_API);
-    state.templates = data.templates || {};
-    state.templatesRevision = data._revision || "";
-    state.defaults = data.defaults || {};
-    if (!state.templates[state.selectedTemplateKind]) state.selectedTemplateKind = Object.keys(state.templates)[0] || "package";
-    renderTemplates();
-    fillTemplateEditor();
+    templateList.innerHTML = `<div class="dashboard-loading"><span class="dashboard-loading__spinner" aria-hidden="true"></span>Loading email templates...</div>`;
+    try {
+      const data = await api("GET", TEMPLATE_API);
+      state.templates = data.templates || {};
+      state.templatesRevision = data._revision || "";
+      state.defaults = data.defaults || {};
+      if (!state.templates[state.selectedTemplateKind]) state.selectedTemplateKind = Object.keys(state.templates)[0] || "package";
+      renderTemplates();
+      fillTemplateEditor();
+    } catch (error) {
+      templateList.innerHTML = `<div class="dashboard-load-error"><strong>Email templates could not be loaded.</strong><button type="button" class="btn-secondary">Try again</button></div>`;
+      templateList.querySelector("button").addEventListener("click", () => runTask(null, "Loading email templates", loadTemplates));
+      throw error;
+    }
   }
 
   function proofreadingTemplateLabel(kind) {
@@ -951,6 +1177,7 @@
   function renderProofreadingTemplates() {
     proofTemplateList.innerHTML = Object.keys(state.proofreadingTemplates).map((kind) => `<button class="record-row${kind === state.selectedProofreadingTemplateKind ? " active" : ""}" type="button" data-proof-template-kind="${kind}"><strong>${proofreadingTemplateLabel(kind)}</strong><span>${proofreadingTemplateAudience(kind)}</span></button>`).join("");
     proofTemplateList.querySelectorAll("[data-proof-template-kind]").forEach((button) => button.addEventListener("click", () => {
+      if (state.dirtyTabs.has("proofreading-templates") && button.dataset.proofTemplateKind !== state.selectedProofreadingTemplateKind) return showError("Save or discard this email before selecting another.");
       state.selectedProofreadingTemplateKind = button.dataset.proofTemplateKind;
       renderProofreadingTemplates();
       fillProofreadingTemplateEditor();
@@ -979,13 +1206,20 @@
   }
 
   async function loadProofreadingTemplates() {
-    const data = await api("GET", PROOF_TEMPLATE_API);
-    state.proofreadingTemplates = data.templates || {};
-    state.proofreadingRevision = data._revision || "";
-    state.proofreadingDefaults = data.defaults || {};
-    if (!state.proofreadingTemplates[state.selectedProofreadingTemplateKind]) state.selectedProofreadingTemplateKind = Object.keys(state.proofreadingTemplates)[0] || "reviewDocument";
-    renderProofreadingTemplates();
-    fillProofreadingTemplateEditor();
+    proofTemplateList.innerHTML = `<div class="dashboard-loading"><span class="dashboard-loading__spinner" aria-hidden="true"></span>Loading proofreading emails...</div>`;
+    try {
+      const data = await api("GET", PROOF_TEMPLATE_API);
+      state.proofreadingTemplates = data.templates || {};
+      state.proofreadingRevision = data._revision || "";
+      state.proofreadingDefaults = data.defaults || {};
+      if (!state.proofreadingTemplates[state.selectedProofreadingTemplateKind]) state.selectedProofreadingTemplateKind = Object.keys(state.proofreadingTemplates)[0] || "reviewDocument";
+      renderProofreadingTemplates();
+      fillProofreadingTemplateEditor();
+    } catch (error) {
+      proofTemplateList.innerHTML = `<div class="dashboard-load-error"><strong>Proofreading emails could not be loaded.</strong><button type="button" class="btn-secondary">Try again</button></div>`;
+      proofTemplateList.querySelector("button").addEventListener("click", () => runTask(null, "Loading proofreading emails", loadProofreadingTemplates));
+      throw error;
+    }
   }
 
   function buildSubjectPayload() {
@@ -1030,12 +1264,24 @@
 
   async function load() {
     showError("");
-    showStatus("Loading...");
+    showStatus("Loading booking setup...");
+    state.setupLoaded = false;
+    [addSubjectBtn, addServiceBtn, addCouponBtn, saveBtn].forEach((button) => { button.disabled = true; });
+    [subjectList, serviceList, couponList].forEach((list) => {
+      list.innerHTML = `<div class="dashboard-loading"><span class="dashboard-loading__spinner" aria-hidden="true"></span>Loading saved items...</div>`;
+    });
 
-    const [bookingData, couponData] = await Promise.all([
-      api("GET", BOOKING_API),
-      api("GET", COUPON_API)
-    ]);
+    let bookingData;
+    let couponData;
+    try {
+      [bookingData, couponData] = await Promise.all([api("GET", BOOKING_API), api("GET", COUPON_API)]);
+    } catch (error) {
+      [subjectList, serviceList, couponList].forEach((list) => {
+        list.innerHTML = `<div class="dashboard-load-error"><strong>Booking setup could not be loaded.</strong><span>No saved items have been changed.</span><button type="button" class="btn-secondary">Try again</button></div>`;
+        list.querySelector("button").addEventListener("click", () => runTask(refreshBtn, "Loading booking setup", load));
+      });
+      throw error;
+    }
 
     state.subjects = bookingData.subjects || [];
     state.services = bookingData.services || [];
@@ -1043,14 +1289,19 @@
     state.coupons = couponData.coupons || [];
     state.bookingRevision = bookingData.revision || "";
     state.couponRevision = couponData._revision || "";
+    state.bookingBaseline = {
+      subjects: state.subjects.map(copySubject),
+      services: state.services.map(copyService)
+    };
+    state.couponBaseline = state.coupons.map(copyCoupon);
 
-    if (!state.selectedSubjectId && state.subjects[0]) {
+    if (!state.subjects.some((item) => item.id === state.selectedSubjectId) && state.subjects[0]) {
       state.selectedSubjectId = state.subjects[0].id;
     }
-    if (!state.selectedServiceId && state.services[0]) {
+    if (!state.services.some((item) => item.id === state.selectedServiceId) && state.services[0]) {
       state.selectedServiceId = state.services[0].id;
     }
-    if (!state.selectedCouponCode && state.coupons[0]) {
+    if (!state.coupons.some((item) => item.code === state.selectedCouponCode) && state.coupons[0]) {
       state.selectedCouponCode = state.coupons[0].code;
     }
 
@@ -1063,6 +1314,8 @@
     renderSubjectList();
     renderServiceList();
     renderCoupons();
+    state.setupLoaded = true;
+    [addSubjectBtn, addServiceBtn, addCouponBtn, saveBtn].forEach((button) => { button.disabled = false; });
     showStatus(`Loaded ${state.subjects.length} subjects, ${state.services.length} lesson types, and ${state.coupons.length} coupon(s).`);
   }
 
@@ -1075,11 +1328,29 @@
     button.addEventListener("click", () => setTab(button.dataset.tab));
   });
 
-  refreshBtn.addEventListener("click", () => Promise.all([load(), loadOperations()]).catch((error) => showError(error.message)));
-  backupDownloadBtn.addEventListener("click", async () => {
+  async function refreshCurrent() {
+    if (["subjects", "services", "coupons"].includes(state.tab)) return load();
+    if (state.tab === "operations") return loadOperations();
+    if (state.tab === "pricing") return loadPricing();
+    if (state.tab === "templates") return loadTemplates();
+    if (state.tab === "proofreading-templates") return loadProofreadingTemplates();
+  }
+
+  refreshBtn.addEventListener("click", () => {
+    if (state.dirtyTabs.has(state.tab)) {
+      showError("You have unsaved edits. Save them or use Discard edits before refreshing.");
+      return;
+    }
+    runTask(refreshBtn, "Refreshing", refreshCurrent);
+  });
+  discardBtn.addEventListener("click", () => runTask(discardBtn, "Discarding edits", async () => {
+    await refreshCurrent();
+    clearDirty();
+    showStatus("Unsaved edits discarded. The latest saved values are shown.");
+  }));
+  backupDownloadBtn.addEventListener("click", () => {
     if (!window.confirm("This backup contains private client, booking, and payment records. Download it only to a secure device.")) return;
-    backupDownloadBtn.disabled = true;
-    try {
+    runTask(backupDownloadBtn, "Preparing backup", async () => {
       const response = await fetch("/api/admin/backup", { headers: { "x-finbar-admin-key": getAdminKey() } });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -1100,11 +1371,7 @@
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       showStatus("Backup downloaded. Store it securely; this file contains private client records.");
-    } catch (error) {
-      showError(error.message);
-    } finally {
-      backupDownloadBtn.disabled = false;
-    }
+    });
   });
   backupRestoreFile.addEventListener("change", () => {
     const file = backupRestoreFile.files?.[0];
@@ -1112,7 +1379,7 @@
     showError(file && file.size > 3.5 * 1024 * 1024 ? "This backup is too large to restore in the dashboard. Keep the original file and ask for help restoring it securely." : "");
     if (file && file.size > 3.5 * 1024 * 1024) backupRestoreBtn.disabled = true;
   });
-  backupRestoreBtn.addEventListener("click", async () => {
+  backupRestoreBtn.addEventListener("click", () => {
     const file = backupRestoreFile.files?.[0];
     if (!file) return;
     const section = backupRestoreSection.value;
@@ -1120,9 +1387,7 @@
     if (!window.confirm(`Restore ${sectionName}? This replaces the current ${sectionName.toLowerCase()} from the selected backup.`)) return;
     if (window.prompt('Type RESTORE to confirm. Download a fresh backup first.') !== "RESTORE") return;
 
-    backupRestoreBtn.disabled = true;
-    showError("");
-    try {
+    runTask(backupRestoreBtn, "Restoring backup", async () => {
       let backup;
       try {
         backup = JSON.parse(await file.text());
@@ -1145,20 +1410,21 @@
       }
       backupRestoreFile.value = "";
       showStatus(`${sectionName} restored. Reopen that dashboard section to refresh its values.`);
-    } catch (error) {
-      showError(error.message);
-    } finally {
+    }).finally(() => {
       backupRestoreBtn.disabled = !backupRestoreFile.files?.[0];
-    }
+    });
   });
   logoutBtn.addEventListener("click", () => {
+    if (state.dirtyTabs.size && !window.confirm("You have unsaved edits. Sign out and discard them?")) return;
+    state.dirtyTabs.clear();
     sessionStorage.removeItem("finbarAdminKey");
     sessionStorage.removeItem(ADMIN_LAST_ACTIVITY_KEY);
     window.location.replace("/admin-login.html");
   });
 
   addSubjectBtn.addEventListener("click", () => {
-    setTab("subjects");
+    if (!setTab("subjects")) return;
+    if (state.dirtyTabs.has("subjects")) return showError("Save or discard the current subject before adding another.");
     const subject = copySubject({
       id: newId("subject"),
       name: "New subject",
@@ -1172,28 +1438,35 @@
     renderServiceSubjectFilter();
     fillSubjectEditor(subject);
     renderSubjectList();
+    markDirty("subjects");
   });
 
   addServiceBtn.addEventListener("click", () => {
-    setTab("services");
-    const fallbackSubject = currentSubject() || state.subjects[0] || { id: "", name: "" };
+    if (!setTab("services")) return;
+    if (state.dirtyTabs.has("services")) return showError("Save or discard the current lesson type before adding another.");
+    const subjects = [currentSubject(), ...state.subjects].filter((subject, index, list) => subject && list.findIndex((item) => item?.id === subject.id) === index);
+    const combinations = ["oneToOne", "oneToTwo"].flatMap((format) => ["trial", "single", "pack6", "pack12"].map((tier) => ({ format, tier })));
+    const missing = subjects.map((subject) => ({ subject, combination: combinations.find(({ format, tier }) => !state.services.some((service) => service.subjectId === subject.id && service.format === format && service.tier === tier)) })).find((item) => item.combination);
+    if (!missing) return showError("Every subject already has all eight lesson types. Edit an existing lesson type, or add a new subject first.");
     const service = copyService({
       id: newId("service"),
-      subjectId: fallbackSubject.id,
-      format: "oneToOne",
-      tier: "trial",
-      label: "Tutor + one student - Trial class",
-      calendarID: "14289294",
+      subjectId: missing.subject.id,
+      format: missing.combination.format,
+      tier: missing.combination.tier,
+      label: priceLabel(missing.combination.format, missing.combination.tier),
+      calendarID: "",
       active: true
     });
     ensureSelectedAfterAdd(state.services, service, "selectedServiceId");
     fillServiceEditor(service);
     renderServiceSubjectOptions();
     renderServiceList();
+    markDirty("services");
   });
 
   addCouponBtn.addEventListener("click", () => {
-    setTab("coupons");
+    if (!setTab("coupons")) return;
+    if (state.dirtyTabs.has("coupons")) return showError("Save or discard the current coupon before adding another.");
     const coupon = copyCoupon({
       code: "",
       percent: 10,
@@ -1206,10 +1479,13 @@
     state.selectedCouponCode = "";
     fillCouponEditor(coupon);
     renderCoupons();
+    markDirty("coupons");
   });
 
   deleteSubjectBtn.addEventListener("click", () => {
     if (!state.selectedSubjectId) return;
+    const linkedLessons = state.services.filter((service) => service.subjectId === state.selectedSubjectId).length;
+    if (!window.confirm(`Remove ${currentSubject()?.name || "this subject"}${linkedLessons ? ` and its ${linkedLessons} linked lesson type${linkedLessons === 1 ? "" : "s"}` : ""}? This takes effect only when you save changes.`)) return;
     state.subjects = state.subjects.filter((subject) => subject.id !== state.selectedSubjectId);
     state.services = state.services.filter((service) => service.subjectId !== state.selectedSubjectId);
     state.selectedSubjectId = state.subjects[0]?.id || "";
@@ -1220,90 +1496,100 @@
     renderServiceList();
     fillSubjectEditor(currentSubject() || {});
     fillServiceEditor(currentService() || {});
+    markDirty("subjects");
   });
 
   deleteServiceBtn.addEventListener("click", () => {
     if (!state.selectedServiceId) return;
+    if (!window.confirm("Remove this lesson type? It will not be removed until you save changes.")) return;
     state.services = state.services.filter((service) => service.id !== state.selectedServiceId);
     state.selectedServiceId = state.services[0]?.id || "";
     renderServiceList();
     fillServiceEditor(currentService() || {});
+    markDirty("services");
   });
 
   deleteCouponBtn.addEventListener("click", () => {
     const coupon = currentCoupon();
     if (!coupon) return;
+    if (!window.confirm(`Remove coupon ${coupon.code}? It will not be removed until you save changes.`)) return;
     state.coupons = state.coupons.filter((item) => item.code !== coupon.code);
     state.selectedCouponCode = state.coupons[0]?.code || "";
     renderCoupons();
     fillCouponEditor(currentCoupon() || {});
+    markDirty("coupons");
   });
 
-  saveBtn.addEventListener("click", async () => {
-    showError("");
-    try {
-      const subject = buildSubjectPayload();
-      const service = buildServicePayload();
+  saveBtn.addEventListener("click", () => runTask(saveBtn, "Saving changes", async () => {
+    if (state.tab === "coupons") {
       const coupon = buildCouponPayload();
-
-      if (subject.name) {
-        const index = state.subjects.findIndex((item) => item.id === subject.id);
-        if (index >= 0) state.subjects[index] = subject;
-        else state.subjects.unshift(subject);
-        state.selectedSubjectId = subject.id;
+      if (state.coupons.length && (!coupon.code || !Number.isFinite(coupon.percent) || coupon.percent < 1 || coupon.percent > 100)) {
+        throw new Error("Enter a coupon code and a discount between 1% and 100%.");
       }
-
-      if (service.subjectId && service.format && service.tier) {
-        const index = state.services.findIndex((item) => item.id === service.id);
-        if (index >= 0) state.services[index] = service;
-        else state.services.unshift(service);
-        state.selectedServiceId = service.id;
-      }
-
-      if (coupon.code && Number.isFinite(coupon.percent) && coupon.percent > 0) {
+      const nextCoupons = [...state.coupons];
+      if (state.coupons.length) {
         coupon.code = coupon.code.toUpperCase();
-        coupon.percent = Math.max(1, Math.min(100, Math.round(coupon.percent)));
+        coupon.percent = Math.round(coupon.percent);
         coupon.packageKeys = coupon.packageKeys.length ? coupon.packageKeys : state.packageCatalog.map((item) => item.key);
-        const originalCode = state.selectedCouponCode ? state.selectedCouponCode.toUpperCase() : "";
-        const index = state.coupons.findIndex((item) => item.code === originalCode || item.code === coupon.code);
-        if (index >= 0) state.coupons[index] = coupon;
-        else state.coupons.unshift(coupon);
-        state.selectedCouponCode = coupon.code;
+        const originalCode = state.selectedCouponCode.toUpperCase();
+        if (nextCoupons.some((item) => item.code === coupon.code && item.code !== originalCode)) {
+          throw new Error("That coupon code already exists. Choose a different code.");
+        }
+        const index = nextCoupons.findIndex((item) => item.code === originalCode || item.code === coupon.code);
+        if (index >= 0) nextCoupons[index] = coupon;
+        else nextCoupons.unshift(coupon);
       }
-
-      const bookingResult = await api("PUT", BOOKING_API, {
-        version: 1,
-        revision: state.bookingRevision,
-        subjects: state.subjects,
-        services: state.services
-      });
-
-      state.subjects = bookingResult.subjects || state.subjects;
-      state.services = bookingResult.services || state.services;
-      state.packageCatalog = bookingResult.packageCatalog || state.packageCatalog;
-      state.bookingRevision = bookingResult.revision || state.bookingRevision;
-
-      const couponResult = await api("PUT", COUPON_API, {
-        _revision: state.couponRevision,
-        coupons: state.coupons
-      });
-      state.coupons = couponResult.coupons || state.coupons;
-      state.couponRevision = couponResult._revision || state.couponRevision;
-
-      renderPackageList();
+      const result = await saveCouponsWithRevisionCheck(nextCoupons);
+      state.coupons = result.coupons || nextCoupons;
+      state.couponRevision = result._revision || state.couponRevision;
+      state.couponBaseline = state.coupons.map(copyCoupon);
+      state.selectedCouponCode = state.coupons.length ? coupon.code : "";
+      renderCoupons();
+      fillCouponEditor(currentCoupon() || {});
+    } else {
+      const subjects = [...state.subjects];
+      const services = [...state.services];
+      if (state.tab === "subjects") {
+        const subject = buildSubjectPayload();
+        if (state.selectedSubjectId) {
+          if (!subject.name) throw new Error("Enter a subject name before saving.");
+          const index = subjects.findIndex((item) => item.id === subject.id);
+          if (index >= 0) subjects[index] = subject;
+          else subjects.unshift(subject);
+          state.selectedSubjectId = subject.id;
+        }
+      } else if (state.tab === "services") {
+        const service = buildServicePayload();
+        if (state.selectedServiceId) {
+          if (!service.subjectId || !service.format || !service.tier) throw new Error("Choose a subject, lesson format, and tier before saving.");
+          if (services.some((item) => item.id !== service.id && item.subjectId === service.subjectId && item.format === service.format && item.tier === service.tier)) {
+            throw new Error("That subject already has this lesson format and tier. Edit its existing lesson type instead.");
+          }
+          const index = services.findIndex((item) => item.id === service.id);
+          if (index >= 0) services[index] = service;
+          else services.unshift(service);
+          state.selectedServiceId = service.id;
+        }
+      } else return;
+      const result = await saveBookingWithRevisionCheck(subjects, services);
+      state.subjects = result.subjects || subjects;
+      state.services = result.services || services;
+      state.packageCatalog = result.packageCatalog || state.packageCatalog;
+      state.bookingRevision = result.revision || state.bookingRevision;
+      state.bookingBaseline = {
+        subjects: state.subjects.map(copySubject),
+        services: state.services.map(copyService)
+      };
       renderServiceSubjectOptions();
       renderServiceSubjectFilter();
       renderSubjectList();
       renderServiceList();
-      renderCoupons();
-      fillSubjectEditor(currentSubject() || state.subjects[0] || {});
-      fillServiceEditor(currentService() || state.services[0] || {});
-      fillCouponEditor(currentCoupon() || state.coupons[0] || {});
-      showStatus("Dashboard settings saved.");
-    } catch (error) {
-      showError(error.message);
+      fillSubjectEditor(currentSubject() || {});
+      fillServiceEditor(currentService() || {});
     }
-  });
+    clearDirty();
+    showStatus(state.tab === "coupons" ? "Coupon changes saved for future checkouts." : "Booking setup saved. Check the customer site to confirm this subject or lesson is displayed as intended.");
+  }));
 
   subjectSearchInput.addEventListener("input", () => {
     state.search.subjects = subjectSearchInput.value.trim();
@@ -1353,8 +1639,11 @@
   });
 
   operationSearchInput.addEventListener("input", renderOperations);
-  refreshOperationsBtn.addEventListener("click", () => loadOperations().catch((error) => showError(error.message)));
-  refreshPricingBtn.addEventListener("click", () => loadPricing().catch((error) => showError(error.message)));
+  refreshOperationsBtn.addEventListener("click", () => runTask(refreshOperationsBtn, "Loading bookings", loadOperations));
+  refreshPricingBtn.addEventListener("click", () => {
+    if (state.dirtyTabs.has("pricing")) return showError("Save or discard your pricing edits before refreshing.");
+    runTask(refreshPricingBtn, "Loading prices", loadPricing);
+  });
   priceSubjectSelect.addEventListener("change", () => {
     const nextSubjectId = priceSubjectSelect.value;
     try {
@@ -1375,25 +1664,24 @@
       state.pricing.subjectPrices[state.pricingSubjectId] = JSON.parse(JSON.stringify(state.pricing.prices));
     }
     renderPricing();
+    markDirty("pricing");
   });
-  savePricingBtn.addEventListener("click", async () => {
-    try {
+  savePricingBtn.addEventListener("click", () => runTask(savePricingBtn, "Saving prices", async () => {
       capturePricingEditor();
-      const data = await api("PUT", PRICING_API, state.pricing);
+      const data = await savePricingWithRevisionCheck(state.pricing);
       state.pricing = data.pricing || state.pricing;
+      state.pricingBaseline = pricingContent(state.pricing);
       state.pricingServices = data.services || state.pricingServices;
       renderPricing();
       const mapped = state.pricingServices.filter((service) => service.appointmentTypeID);
       const unverified = mapped.filter((service) => !Number.isFinite(service.acuityPrice)).length;
       const mismatches = mapped.filter((service) => service.matchesAcuity === false).length;
+      clearDirty("pricing");
       showStatus(`Saved for new website quotes and Stripe checkouts. Acuity is not automatically updated.${mismatches ? ` ${mismatches} price mismatch${mismatches === 1 ? "" : "es"} need attention.` : ""}${unverified ? ` ${unverified} Acuity price${unverified === 1 ? " could not be verified." : "s could not be verified."}` : ""}`);
-    } catch (error) {
-      showError(error.message);
-    }
-  });
+  }));
 
   [templateSubjectInput, templateHeadingInput, templateMessageInput, templateCtaInput, templateNoteInput].forEach((input) => input.addEventListener("input", renderEmailPreview));
-  saveTemplateBtn.addEventListener("click", async () => {
+  saveTemplateBtn.addEventListener("click", () => runTask(saveTemplateBtn, "Saving template", async () => {
     const templates = { ...state.templates, [state.selectedTemplateKind]: {
       subject: templateSubjectInput.value.trim(),
       heading: templateHeadingInput.value.trim(),
@@ -1404,22 +1692,24 @@
     const data = await api("PUT", TEMPLATE_API, { version: 1, _revision: state.templatesRevision, templates });
     state.templates = data.templates || templates;
     state.templatesRevision = data._revision || state.templatesRevision;
+    clearDirty("templates");
     showStatus("Email template saved. Future customer emails will use this wording.");
     renderTemplates();
     fillTemplateEditor();
-  });
-  resetTemplateBtn.addEventListener("click", async () => {
+  }));
+  resetTemplateBtn.addEventListener("click", () => runTask(resetTemplateBtn, "Restoring template", async () => {
     if (!window.confirm("Reset this email template to Finbar's default wording?")) return;
     const data = await api("POST", TEMPLATE_API, { kind: state.selectedTemplateKind });
     state.templates = data.templates || state.templates;
     state.templatesRevision = data._revision || state.templatesRevision;
+    clearDirty("templates");
     showStatus("Email template restored to the default wording.");
     renderTemplates();
     fillTemplateEditor();
-  });
+  }));
 
   [proofTemplateSubjectInput, proofTemplateHeadingInput, proofTemplateMessageInput, proofTemplateCtaInput, proofTemplateNoteInput].forEach((input) => input.addEventListener("input", renderProofreadingEmailPreview));
-  saveProofTemplateBtn.addEventListener("click", async () => {
+  saveProofTemplateBtn.addEventListener("click", () => runTask(saveProofTemplateBtn, "Saving template", async () => {
     const templates = { ...state.proofreadingTemplates, [state.selectedProofreadingTemplateKind]: {
       subject: proofTemplateSubjectInput.value.trim(),
       heading: proofTemplateHeadingInput.value.trim(),
@@ -1430,18 +1720,35 @@
     const data = await api("PUT", PROOF_TEMPLATE_API, { version: 1, _revision: state.proofreadingRevision, templates });
     state.proofreadingTemplates = data.templates || templates;
     state.proofreadingRevision = data._revision || state.proofreadingRevision;
+    clearDirty("proofreading-templates");
     showStatus("Proofreading email template saved. Future proofreading emails will use this wording.");
     renderProofreadingTemplates();
     fillProofreadingTemplateEditor();
-  });
-  resetProofTemplateBtn.addEventListener("click", async () => {
+  }));
+  resetProofTemplateBtn.addEventListener("click", () => runTask(resetProofTemplateBtn, "Restoring template", async () => {
     if (!window.confirm("Reset this proofreading email template to Finbar's default wording?")) return;
     const data = await api("POST", PROOF_TEMPLATE_API, { kind: state.selectedProofreadingTemplateKind });
     state.proofreadingTemplates = data.templates || state.proofreadingTemplates;
     state.proofreadingRevision = data._revision || state.proofreadingRevision;
+    clearDirty("proofreading-templates");
     showStatus("Proofreading email template restored to the default wording.");
     renderProofreadingTemplates();
     fillProofreadingTemplateEditor();
+  }));
+
+  const noDirtyTracking = new Set(["operationSearchInput", "subjectSearchInput", "serviceSearchInput", "serviceSubjectFilter", "couponSearchInput", "priceSubjectSelect"]);
+  window.addEventListener("beforeunload", (event) => {
+    if (!state.dirtyTabs.size) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+  document.querySelectorAll(".admin-tab-panel").forEach((panel) => {
+    panel.addEventListener("input", (event) => {
+      if (event.target.matches("input, textarea, select") && !noDirtyTracking.has(event.target.id) && ["pricing", "templates", "proofreading-templates", "subjects", "services", "coupons"].includes(panel.dataset.panel)) markDirty(panel.dataset.panel);
+    });
+    panel.addEventListener("change", (event) => {
+      if (event.target.matches("input, textarea, select") && !noDirtyTracking.has(event.target.id) && ["pricing", "templates", "proofreading-templates", "subjects", "services", "coupons"].includes(panel.dataset.panel)) markDirty(panel.dataset.panel);
+    });
   });
 
   setTab("operations");

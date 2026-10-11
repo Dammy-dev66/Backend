@@ -29,6 +29,7 @@ const DEFAULT_CLASS_DATA = [
 ];
 let CLASS_DATA = DEFAULT_CLASS_DATA.slice();
 let PRICING_STATE = null;
+let BOOKING_CONFIG_READY = false;
 
 const DEFAULT_FORMATS = [
   { key: "oneToOne", label: "Tutor + one student", price: { trial: 25, single: 50, pack6: 264, pack12: 456 } },
@@ -118,16 +119,20 @@ function convertBookingConfigToClassData(config) {
 
 async function loadBookingConfig() {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/booking-config`);
+    const res = await fetch(`${BACKEND_URL}/api/booking-config`, { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
-    if (res.ok && data.ok && Array.isArray(data.subjects) && Array.isArray(data.services)) {
+    if (res.ok && data.ok && Array.isArray(data.subjects) && Array.isArray(data.services) && data.pricing?.prices) {
       CLASS_DATA = convertBookingConfigToClassData(data);
-      PRICING_STATE = data.pricing || null;
+      PRICING_STATE = data.pricing;
+      BOOKING_CONFIG_READY = true;
+      return;
     }
   } catch {
-    CLASS_DATA = DEFAULT_CLASS_DATA.slice();
-    FORMATS = DEFAULT_FORMATS.map((format) => ({ ...format, price: { ...format.price } }));
+    // Keep the visible list for context, but never quote a hard-coded fallback price.
   }
+  BOOKING_CONFIG_READY = false;
+  PRICING_STATE = null;
+  CLASS_DATA = DEFAULT_CLASS_DATA.slice();
 }
 
 function $(id) {
@@ -154,12 +159,11 @@ function selectedFormat() {
 }
 
 function selectedPrice() {
+  if (!BOOKING_CONFIG_READY) return null;
   const subject = selectedSubject();
-  const format = selectedFormat();
   const tier = state.tierKey;
   const value = (subject?.id && PRICING_STATE?.subjectPrices?.[subject.id]?.[state.formatKey]?.[tier]) ??
-    PRICING_STATE?.prices?.[state.formatKey]?.[tier] ??
-    format?.price?.[tier];
+    PRICING_STATE?.prices?.[state.formatKey]?.[tier];
   return Number.isFinite(Number(value)) ? Number(value) : null;
 }
 
@@ -446,8 +450,10 @@ function updateChoiceUI() {
   $("continueChoiceBtn").textContent = tier.needsPackage && state.packageMode === "buy"
     ? "Pay"
     : "Select dates/times";
-  $("continueChoiceBtn").disabled = !mappingReady || price === null;
-  $("step1Error").textContent = !mappingReady
+  $("continueChoiceBtn").disabled = !BOOKING_CONFIG_READY || !mappingReady || price === null;
+  $("step1Error").textContent = !BOOKING_CONFIG_READY
+    ? "Booking options are temporarily unavailable. Please refresh this page or contact Finbar."
+    : !mappingReady
     ? "This lesson option is not available yet. Please choose another subject or lesson option."
     : price === null ? "The price for this lesson is not configured yet. Please contact Finbar." : "";
 }

@@ -1,6 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Readable } = require("node:stream");
+const { defaultPriceState, policyVersion } = require("../lib/price-config");
+
+const currentPolicyVersion = policyVersion(defaultPriceState().popup.policyText);
 
 function makeResponse() {
   return {
@@ -54,6 +57,8 @@ test("create-stripe-session includes the exact sessions link on the Stripe succe
     appointmentTypeID: "96938926",
     productID: "2260532",
     quotedTotalCents: 36000,
+    policyAccepted: true,
+    policyVersion: currentPolicyVersion,
     email: "student@example.com",
     backUrl: "https://carrd.example"
   }))]);
@@ -63,7 +68,7 @@ test("create-stripe-session includes the exact sessions link on the Stripe succe
   const res = makeResponse();
   await handler(req, res);
 
-  assert.equal(res.statusCode, 200);
+  assert.equal(res.statusCode, 200, res.body);
   assert.equal(calls.length, 1);
 
   const successUrl = new URL(calls[0].success_url);
@@ -104,6 +109,8 @@ test("create-stripe-session preserves both student names in Stripe metadata", as
     tier: "single",
     appointmentTypeID: "96938789",
     quotedTotalCents: 7000,
+    policyAccepted: true,
+    policyVersion: currentPolicyVersion,
     email: "student@example.com",
     firstName: "Parent",
     lastName: "Example",
@@ -118,7 +125,7 @@ test("create-stripe-session preserves both student names in Stripe metadata", as
   const res = makeResponse();
   await handler(req, res);
 
-  assert.equal(res.statusCode, 200);
+  assert.equal(res.statusCode, 200, res.body);
   assert.equal(calls[0].metadata.studentName, "Alice Example");
   assert.equal(calls[0].metadata.studentName2, "Ben Example");
 });
@@ -138,13 +145,42 @@ test("stale displayed price cannot open a Stripe session", async () => {
     appointmentTypeID: "96938926",
     productID: "2260532",
     email: "student@example.com",
-    quotedTotalCents: 35000
+    quotedTotalCents: 35000,
+    policyAccepted: true,
+    policyVersion: currentPolicyVersion
   }))]);
   req.method = "POST";
   req.headers = { origin: "https://backend-ymlj.vercel.app" };
   const res = makeResponse();
   await handler(req, res);
-  assert.equal(res.statusCode, 409);
+  assert.equal(res.statusCode, 409, res.body);
   assert.equal(JSON.parse(res.body).code, "PRICE_CHANGED");
+  assert.equal(calls.length, 0);
+});
+
+test("create-stripe-session requires acceptance of the current policy version", async () => {
+  const calls = [];
+  const handler = loadHandlerWithStub({
+    getStripeClient: () => ({ checkout: { sessions: { create: async (payload) => {
+      calls.push(payload);
+      return { url: "https://stripe.example/session" };
+    } } } })
+  });
+  const req = Readable.from([Buffer.from(JSON.stringify({
+    subject: "English Literature",
+    format: "oneToTwo",
+    tier: "pack6",
+    appointmentTypeID: "96938926",
+    productID: "2260532",
+    quotedTotalCents: 36000,
+    email: "student@example.com"
+  }))]);
+  req.method = "POST";
+  req.headers = { origin: "https://backend-ymlj.vercel.app" };
+  const res = makeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 400, res.body);
+  assert.match(JSON.parse(res.body).error, /accept the current lesson policy/i);
   assert.equal(calls.length, 0);
 });

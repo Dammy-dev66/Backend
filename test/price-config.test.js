@@ -4,6 +4,7 @@ const { defaultPriceState, normalizePriceState, resolvePriceFromState, validateP
 
 test("price configuration keeps a complete EUR price matrix and rejects invalid amounts", () => {
   const defaults = defaultPriceState();
+  assert.ok(defaults.popup.policyText.length <= 1400);
   const pricing = normalizePriceState({
     currency: "USD",
     prices: {
@@ -17,6 +18,17 @@ test("price configuration keeps a complete EUR price matrix and rejects invalid 
   assert.equal(pricing.prices.oneToOne.pack6, defaults.prices.oneToOne.pack6);
   assert.equal(pricing.prices.oneToTwo.pack12, 700.1);
   assert.equal(pricing.prices.oneToTwo.single, defaults.prices.oneToTwo.single);
+});
+
+test("pricing popup defaults to Fin's booking rules while allowing an explicit saved edit", () => {
+  const defaults = defaultPriceState();
+  assert.match(defaults.popup.policyText, /More than 12 hours before a lesson/);
+  assert.match(defaults.popup.policyText, /50% of that lesson's paid value/);
+  assert.match(defaults.popup.policyText, /6-class packages expire 12 weeks/);
+  assert.match(defaults.popup.policyText, /waits 20 minutes/);
+  assert.match(defaults.popup.policyText, /recording of the lesson/);
+  assert.equal(normalizePriceState({ popup: { policyText: "" } }).popup.policyText, defaults.popup.policyText);
+  assert.equal(normalizePriceState({ popup: { policyText: "Fin-approved update." } }).popup.policyText, "Fin-approved update.");
 });
 
 test("dashboard price saves reject blank or malformed amounts before normalization", () => {

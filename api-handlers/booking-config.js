@@ -25,6 +25,7 @@ function buildPackageCatalog() {
 
 module.exports = async function handler(req, res) {
   if (handleOptions(req, res)) return;
+  res.setHeader?.("Cache-Control", "no-store, max-age=0");
 
   if (req.method !== "GET" && req.method !== "PUT") {
     return sendJson(req, res, 405, { ok: false, error: "Method not allowed." });

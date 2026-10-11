@@ -156,28 +156,31 @@ test("Carrd popup keeps subject prices separate and refreshes a saved change", a
   const config = {
     ok: true,
     subjects: [
-      { id: "ap-psychology", name: "AP Psychology", active: true },
+      { id: "elegant-essays", name: "Elegant Essays", active: true },
       { id: "english-literature", name: "Literary Classics", active: true }
     ],
     services: [
-      { subjectId: "ap-psychology", format: "oneToOne", tier: "single", appointmentTypeID: "101", active: true },
-      { subjectId: "english-literature", format: "oneToOne", tier: "single", appointmentTypeID: "102", active: true }
+      { subjectId: "elegant-essays", format: "oneToOne", tier: "single", appointmentTypeID: "96953069", active: true },
+      { subjectId: "english-literature", format: "oneToOne", tier: "single", appointmentTypeID: "96938767", active: true }
     ],
     pricing: {
       prices: { oneToOne: { trial: 35, single: 70, pack6: 390, pack12: 720 }, oneToTwo: { trial: 50, single: 100, pack6: 540, pack12: 960 } },
-      subjectPrices: { "ap-psychology": { oneToOne: { single: 85 } } }
+      subjectPrices: {
+        "elegant-essays": { oneToOne: { single: 81 } },
+        "english-literature": { oneToOne: { single: 79 } }
+      }
     }
   };
   const ui = await grid(config);
-  ui.open("AP Psychology");
-  assert.equal(ui.buttons[2].textContent, "EUR 85.00");
+  ui.open("Elegant Essays");
+  assert.equal(ui.buttons[2].textContent, "EUR 81.00");
   ui.open("Literary Classics");
-  assert.equal(ui.buttons[2].textContent, "EUR 70.00");
+  assert.equal(ui.buttons[2].textContent, "EUR 79.00");
 
-  config.pricing.subjectPrices["ap-psychology"].oneToOne.single = 92;
+  config.pricing.subjectPrices["elegant-essays"].oneToOne.single = 92;
   await ui.refresh();
-  ui.open("AP Psychology");
+  ui.open("Elegant Essays");
   assert.equal(ui.buttons[2].textContent, "EUR 92.00");
   ui.open("Literary Classics");
-  assert.equal(ui.buttons[2].textContent, "EUR 70.00");
+  assert.equal(ui.buttons[2].textContent, "EUR 79.00");
 });

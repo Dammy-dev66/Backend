@@ -116,6 +116,27 @@ test("customer paid single-lesson cancellation waits for a refund decision", asy
   assert.equal(calls.cancel.length, 0);
 });
 
+test("customer can freely cancel an early single-lesson package booking and restore its Acuity credit", async () => {
+  const packageRecord = { certificate: "SINGLE-1", tier: "single", purchasedAt: new Date(Date.now() - day).toISOString() };
+  const { handler, calls, ledger } = loadHandler({
+    packageRecord,
+    savedAppointment: { certificate: packageRecord.certificate, stripePaymentIntentId: "pi_package_1" }
+  });
+  const access = appointmentAccessToken("APT-1", "parent@example.com");
+  const view = response();
+  await handler(getRequest({ appointmentId: "APT-1", access }), view);
+  assert.equal(JSON.parse(view.body).canCancel, true);
+  assert.equal(JSON.parse(view.body).cancelNeedsReview, false);
+
+  const canceled = response();
+  await handler(request({ action: "cancel", actionId: "package-cancel-1", appointmentId: "APT-1", access }), canceled);
+  assert.equal(canceled.statusCode, 200, canceled.body);
+  assert.equal(calls.cancel.length, 1);
+  assert.equal(calls.email.length, 1);
+  assert.equal(calls.email[0].templateKind, "canceled");
+  assert.equal(ledger.appointments[0].status, "Canceled");
+});
+
 test("customer view exposes only actions currently supported by the policy", async () => {
   const access = appointmentAccessToken("APT-1", "parent@example.com");
   const { handler, calls } = loadHandler({ savedAppointment: { stripePaymentIntentId: "pi_test_1" } });

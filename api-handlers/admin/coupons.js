@@ -27,6 +27,7 @@ function normalizeStateBody(body) {
 
 module.exports = async function handler(req, res) {
   if (handleOptions(req, res)) return;
+  res.setHeader?.("Cache-Control", "private, no-store, max-age=0");
 
   const url = new URL(req.url || "/", "http://localhost");
   const resource = req.query?.resource || url.searchParams.get("resource");

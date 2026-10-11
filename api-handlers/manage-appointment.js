@@ -73,10 +73,11 @@ module.exports = async function handler(req, res) {
       (item.certificate && item.certificate === String(appointment.certificate || savedAppointment?.certificate || "")) ||
       (savedAppointment?.orderID && item.orderID === savedAppointment.orderID)
     );
+    const hasPackageCredit = Boolean(linkedPackage || appointment.certificate || savedAppointment?.certificate);
     const lateWindow = isWithinLateChangeWindow(appointment.datetime);
     const startAt = new Date(appointment.datetime).getTime();
     const canReschedule = !appointment.canceled && !appointment.noShow && Number.isFinite(startAt) && startAt > Date.now() && !lateWindow;
-    const paidCancellationNeedsReview = (linkedPackage || savedAppointment?.stripePaymentIntentId) && !["pack6", "pack12"].includes(linkedPackage?.tier);
+    const paidCancellationNeedsReview = Boolean(savedAppointment?.stripePaymentIntentId && !hasPackageCredit);
     const canCancel = canReschedule && !paidCancellationNeedsReview;
 
     if (req.method === "GET") {
@@ -119,8 +120,7 @@ module.exports = async function handler(req, res) {
     if (appointment.canceled || appointment.noShow) return sendJson(req, res, 409, { ok: false, error: "This appointment is already canceled or marked no-show." });
     if (Number.isFinite(startAt) && Date.now() >= startAt) return sendJson(req, res, 409, { ok: false, error: "This lesson has started. Please contact Finbar for help." });
     if (lateWindow) return sendJson(req, res, 409, { ok: false, error: "Changes within 12 hours require a 50% refund. Please contact Finbar so the refund and package balance can be handled correctly." });
-    const hasMultiLessonEntitlement = ["pack6", "pack12"].includes(linkedPackage?.tier);
-    if (action === "cancel" && (linkedPackage || savedAppointment?.stripePaymentIntentId) && !hasMultiLessonEntitlement) {
+    if (action === "cancel" && savedAppointment?.stripePaymentIntentId && !hasPackageCredit) {
       return sendJson(req, res, 409, { ok: false, error: "This paid booking needs its payment and any refund reviewed with the cancellation. Please contact Finbar to complete both together." });
     }
 

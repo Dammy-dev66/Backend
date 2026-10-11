@@ -25,7 +25,9 @@ test("subject override is the amount quoted and charged by Stripe", async () => 
     checkout: require.resolve("../api-handlers/create-stripe-session")
   };
   const state = priceConfig.defaultPriceState();
+  state.subjectPrices["elegant-essays"] = { oneToOne: { single: 81 } };
   state.subjectPrices["english-literature"] = {
+    oneToOne: { single: 79 },
     oneToTwo: { pack6: 540 }
   };
   const stripeCalls = [];
@@ -53,6 +55,25 @@ test("subject override is the amount quoted and charged by Stripe", async () => 
     appointmentTypeID: "96938926",
     productID: "2260532"
   };
+  const elegantQuote = await post(require("../api-handlers/checkout-quote"), {
+    subjectId: "elegant-essays",
+    format: "oneToOne",
+    tier: "single",
+    appointmentTypeID: "96953069",
+    productID: ""
+  });
+  const literaryQuote = await post(require("../api-handlers/checkout-quote"), {
+    subjectId: "english-literature",
+    format: "oneToOne",
+    tier: "single",
+    appointmentTypeID: "96938767",
+    productID: ""
+  });
+  assert.equal(elegantQuote.statusCode, 200);
+  assert.equal(elegantQuote.body.totalPrice, 81);
+  assert.equal(literaryQuote.statusCode, 200);
+  assert.equal(literaryQuote.body.totalPrice, 79);
+
   const quote = await post(require("../api-handlers/checkout-quote"), selected);
   assert.equal(quote.statusCode, 200);
   assert.equal(quote.body.subjectId, "english-literature");
@@ -61,7 +82,9 @@ test("subject override is the amount quoted and charged by Stripe", async () => 
   const checkout = await post(require("../api-handlers/create-stripe-session"), {
     ...selected,
     email: "student@example.com",
-    quotedTotalCents: Math.round(quote.body.totalPrice * 100)
+    quotedTotalCents: Math.round(quote.body.totalPrice * 100),
+    policyAccepted: true,
+    policyVersion: quote.body.policyVersion
   });
   assert.equal(checkout.statusCode, 200);
   assert.equal(checkout.body.totalPrice, quote.body.totalPrice);

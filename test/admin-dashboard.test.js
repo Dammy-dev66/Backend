@@ -53,16 +53,71 @@ test("pricing admin endpoint rejects a blank subject price before writing", asyn
   const res = {
     statusCode: 0,
     body: "",
+    headers: {},
+    setHeader(name, value) { this.headers[name] = value; },
     writeHead(statusCode) { this.statusCode = statusCode; return this; },
     end(body) { this.body = String(body || ""); return this; }
   };
   try {
     await handleDashboardResource(req, res, "pricing");
     assert.equal(res.statusCode, 400);
+    assert.match(res.headers["Cache-Control"], /no-store/);
     assert.match(JSON.parse(res.body).error, /psychology: oneToOne single/);
   } finally {
     if (previousKey === undefined) delete process.env.FINBAR_ADMIN_KEY;
     else process.env.FINBAR_ADMIN_KEY = previousKey;
+  }
+});
+
+test("pricing admin saves distinct subject prices with the approved 50% refund policy", async () => {
+  const paths = {
+    api: require.resolve("../lib/admin-dashboard-api"),
+    price: require.resolve("../lib/price-config"),
+    booking: require.resolve("../lib/booking-config"),
+    acuity: require.resolve("../lib/acuity")
+  };
+  const originals = Object.fromEntries(Object.entries(paths).map(([key, path]) => [key, require.cache[path]]));
+  const priceConfig = require(paths.price);
+  let written;
+  const previousKey = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "pricing-test-key";
+  delete require.cache[paths.api];
+  require.cache[paths.price] = { exports: {
+    ...priceConfig,
+    writePriceState: async (value) => { written = value; return value; }
+  } };
+  require.cache[paths.booking] = { exports: { readBookingConfig: async () => ({ services: [] }) } };
+  require.cache[paths.acuity] = { exports: { listAppointmentTypes: async () => [] } };
+
+  try {
+    const pricing = priceConfig.defaultPriceState();
+    pricing.subjectPrices["elegant-essays"] = JSON.parse(JSON.stringify(pricing.prices));
+    pricing.subjectPrices["literary-classics"] = JSON.parse(JSON.stringify(pricing.prices));
+    pricing.subjectPrices["elegant-essays"].oneToOne.single = 81;
+    pricing.subjectPrices["literary-classics"].oneToOne.single = 79;
+    const req = Readable.from([Buffer.from(JSON.stringify(pricing))]);
+    req.method = "PUT";
+    req.headers = { "x-finbar-admin-key": "pricing-test-key" };
+    const res = {
+      statusCode: 0,
+      body: "",
+      writeHead(statusCode) { this.statusCode = statusCode; return this; },
+      end(body) { this.body = String(body || ""); return this; }
+    };
+
+    await require(paths.api).handleDashboardResource(req, res, "pricing");
+
+    assert.equal(res.statusCode, 200, res.body);
+    assert.match(written.popup.policyText, /50%/);
+    assert.equal(written.subjectPrices["elegant-essays"].oneToOne.single, 81);
+    assert.equal(written.subjectPrices["literary-classics"].oneToOne.single, 79);
+  } finally {
+    if (previousKey === undefined) delete process.env.FINBAR_ADMIN_KEY;
+    else process.env.FINBAR_ADMIN_KEY = previousKey;
+    Object.entries(paths).forEach(([key, path]) => {
+      delete require.cache[path];
+      if (originals[key]) require.cache[path] = originals[key];
+    });
   }
 });
 
@@ -103,6 +158,78 @@ test("operations normalize live appointments and expose package balance badges",
   const summary = buildOperationsSummary([appointment]);
   assert.equal(summary.upcoming >= 0, true);
   assert.match(historyStart(), /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test("reconciling an unchanged appointment preserves its ledger timestamp", () => {
+  const ledger = defaultLedger();
+  const appointment = { id: "APT-UNCHANGED", email: "parent@example.com", status: "Scheduled", datetime: "2026-10-02T14:00:00Z" };
+  recordAppointment(ledger, appointment);
+  const firstUpdatedAt = ledger.appointments[0].updatedAt;
+  recordAppointment(ledger, appointment);
+  assert.equal(ledger.appointments[0].updatedAt, firstUpdatedAt);
+});
+
+test("operations still returns live bookings when ledger reconciliation hits a revision conflict", async () => {
+  const paths = {
+    api: require.resolve("../lib/admin-dashboard-api"),
+    acuity: require.resolve("../lib/acuity"),
+    booking: require.resolve("../lib/booking-config"),
+    ledger: require.resolve("../lib/operations-ledger")
+  };
+  const originals = Object.fromEntries(Object.entries(paths).map(([key, path]) => [key, require.cache[path]]));
+  const previousKey = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "operations-test-key";
+  const conflict = Object.assign(new Error("blob revision conflict"), { statusCode: 409, code: "BLOB_WRITE_CONFLICT" });
+  delete require.cache[paths.api];
+  require.cache[paths.acuity] = { exports: { listAppointments: async () => [{ id: "APT-LIVE", email: "parent@example.com", datetime: "2026-10-02T14:00:00Z", appointmentTypeID: "42" }] } };
+  require.cache[paths.booking] = { exports: { readBookingConfig: async () => ({ services: [] }) } };
+  require.cache[paths.ledger] = { exports: {
+    clientKey: (value) => String(value || "").toLowerCase(),
+    readLedger: async () => defaultLedger(),
+    updateLedger: async () => { throw conflict; },
+    upsertPackage() {}, recordAction() {}, recordAppointment() {}, recordReceipt() {}, receiptDeliveryFields() { return {}; }
+  } };
+  try {
+    const { handleOperations } = require("../lib/admin-dashboard-api");
+    const req = { method: "GET", headers: { "x-finbar-admin-key": "operations-test-key" }, url: "/api/admin/coupons?resource=operations" };
+    const res = {
+      statusCode: 0,
+      body: "",
+      headers: {},
+      setHeader(name, value) { this.headers[name] = value; },
+      writeHead(statusCode) { this.statusCode = statusCode; return this; },
+      end(body) { this.body = String(body || ""); return this; }
+    };
+    await handleOperations(req, res);
+    const response = JSON.parse(res.body);
+    assert.equal(res.statusCode, 200);
+    assert.equal(response.appointments[0].id, "APT-LIVE");
+    assert.match(response.syncWarning, /Bookings are shown below/);
+  } finally {
+    delete require.cache[paths.api];
+    for (const [key, path] of Object.entries(paths)) {
+      if (originals[key]) require.cache[path] = originals[key]; else delete require.cache[path];
+    }
+    if (previousKey === undefined) delete process.env.FINBAR_ADMIN_KEY;
+    else process.env.FINBAR_ADMIN_KEY = previousKey;
+  }
+});
+
+test("operations exposes whether a late-change refund has already been recorded", () => {
+  const appointment = normalizeAppointment(
+    { id: "APT-2", email: "parent@example.com", datetime: "2026-10-02T14:00:00Z", appointmentTypeID: "42" },
+    [{ appointmentTypeID: "42", subjectName: "AP Psychology", format: "oneToOne", tier: "single" }],
+    { appointments: [], packages: [], actions: [{ appointmentID: "APT-2", stripeRefundId: "re_abc123" }] }
+  );
+  assert.equal(appointment.lateChangeRefunded, true);
+  assert.equal(appointment.lateChangeRefundRetryable, false);
+  const retryable = normalizeAppointment(
+    { id: "APT-3", email: "parent@example.com", datetime: "2026-10-02T14:00:00Z", appointmentTypeID: "42" },
+    [{ appointmentTypeID: "42", subjectName: "AP Psychology", format: "oneToOne", tier: "single" }],
+    { appointments: [], packages: [], actions: [{ appointmentID: "APT-3", stripeRefundId: "re_def456", result: "failed" }] }
+  );
+  assert.equal(retryable.lateChangeRefunded, false);
+  assert.equal(retryable.lateChangeRefundRetryable, true);
 });
 
 test("ledger records package purchases, booking use, receipt sends, and dashboard actions", () => {

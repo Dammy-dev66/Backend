@@ -6,8 +6,8 @@
   <title>Booking Dashboard - Finbar B. Elite Tutoring</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=20261011-abc-release">
 </head>
 <body>
   <div class="admin-workspace">
@@ -42,16 +42,18 @@
           <h1 id="dashboardTitle">Operations</h1>
         </div>
         <div class="admin-toolbar">
+          <div class="dashboard-activity" id="dashboardActivity" role="status" aria-live="polite"><span class="dashboard-activity__dot" aria-hidden="true"></span><span id="dashboardActivityText">Ready</span></div>
           <button class="btn-secondary dashboard-refresh" id="refreshBtn" type="button">Refresh</button>
           <button class="btn-primary hidden" id="saveBtn" type="button">Save changes</button>
+          <button class="btn-secondary hidden" id="discardBtn" type="button">Discard edits</button>
           <button class="btn-secondary dashboard-signout" id="logoutBtn" type="button">Sign out</button>
         </div>
       </header>
 
       <div class="dashboard-content">
         <div class="dashboard-feedback" aria-live="polite">
-          <p class="field-error hidden" id="adminError"></p>
-          <p class="field-hint" id="adminStatus"></p>
+          <p class="field-error hidden" id="adminError" role="alert"></p>
+          <p class="field-hint" id="adminStatus" role="status"></p>
         </div>
 
       <section class="admin-tab-panel hidden" data-panel="backup">
@@ -96,16 +98,23 @@
             <p class="editor-note">Set shared defaults, then choose a subject to add its own prices. Coupon discounts are applied after these prices.</p>
             <label class="field"><span>Prices for</span><select id="priceSubjectSelect"><option value="">Shared defaults</option></select></label>
             <label class="package-check" id="priceUseDefaultWrap"><input id="priceUseDefaultInput" type="checkbox"><span>Use shared default prices for this subject</span></label>
+            <p class="editor-note" id="priceSubjectHint">Shared defaults apply to subjects without their own price matrix. Choose a subject and turn off shared defaults to price it independently.</p>
             <div class="price-editor-grid" id="priceEditorGrid"></div>
-            <div class="record-editor-head pricing-copy-head"><strong>Booking popup</strong><span class="status-pill">Website copy</span></div>
-            <label class="field"><span>Popup introduction</span><input id="popupHeadingInput" type="text" maxlength="140"></label>
-            <label class="field"><span>Six-class package note</span><input id="popupPack6Input" type="text" maxlength="120" placeholder="Optional, e.g. Save 15%"></label>
-            <label class="field"><span>Twelve-class package note</span><input id="popupPack12Input" type="text" maxlength="120" placeholder="Optional, e.g. Save 20%"></label>
-            <label class="field"><span>Booking policy text</span><textarea id="popupPolicyInput" rows="4" maxlength="1400" placeholder="Only publish wording Fin has approved and the booking rules support."></textarea></label>
-            <p class="editor-note">Do not publish the 50% refund promise yet. Refund handling and package-credit rules still need approval and implementation.</p>
-            <p class="editor-note">Package savings are calculated from the subject's single-lesson price. Notes are additional wording and do not change the amount charged.</p>
+            <details class="pricing-extra" id="popupEditorDetails">
+              <summary><span><strong>Booking popup wording</strong><small>Heading, package notes, and terms shown to customers</small></span></summary>
+              <div class="pricing-extra__body">
+                <label class="field"><span>Popup introduction</span><input id="popupHeadingInput" type="text" maxlength="140"></label>
+                <label class="field"><span>Six-class package note</span><input id="popupPack6Input" type="text" maxlength="120" placeholder="Optional, e.g. Save 15%"></label>
+                <label class="field"><span>Twelve-class package note</span><input id="popupPack12Input" type="text" maxlength="120" placeholder="Optional, e.g. Save 20%"></label>
+                <label class="field"><span>Booking policy text</span><textarea id="popupPolicyInput" rows="6" maxlength="1400" placeholder="Only publish wording Fin has approved and the booking rules support."></textarea></label>
+                <p class="editor-note">These notes do not change the amount charged or the booking rules. Late refunds and package balances require separate checks.</p>
+              </div>
+            </details>
           </div>
-          <aside class="pricing-reference" id="pricingReference"></aside>
+          <details class="pricing-extra pricing-reference-details" id="pricingReferenceDetails">
+            <summary><span><strong>Acuity price comparison</strong><small>Check whether the Acuity appointment price matches</small></span></summary>
+            <div class="pricing-reference" id="pricingReference"></div>
+          </details>
         </div>
       </section>
 
@@ -149,7 +158,7 @@
         <div class="section-banner">
           <div>
             <h2>Subjects</h2>
-            <p>These are the topic names Carrd and the custom booking page will show first. Keep them short, human, and student-friendly.</p>
+            <p>Edit the subjects students can choose in the booking flow. Carrd's subject cards are updated separately.</p>
           </div>
           <div class="section-actions">
             <input id="subjectSearchInput" class="section-search" type="search" placeholder="Search subjects">
@@ -337,6 +346,7 @@
       </div>
     </main>
   </div>
-  <script src="/admin.js"></script>
+  <script src="/admin-merge.js?v=20261011-abc-release"></script>
+  <script src="/admin.js?v=20261011-abc-release"></script>
 </body>
 </html>
