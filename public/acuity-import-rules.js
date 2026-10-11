@@ -30,12 +30,14 @@
   }
 
   function findPackageMatches(products, appointmentTypeID, count) {
+    return asArray(products).filter((product) => isExactPackageProduct(product, appointmentTypeID, count));
+  }
+
+  function isExactPackageProduct(product, appointmentTypeID, count) {
     const id = text(appointmentTypeID);
-    return asArray(products).filter((product) => {
-      const ids = Array.isArray(product.appointmentTypeIDs) ? product.appointmentTypeIDs.map(text) : [];
-      const counts = product.appointmentTypeCounts || {};
-      return text(product.type).toLowerCase() === "appointments" && ids.includes(id) && Number(counts[id]) === count;
-    });
+    const ids = Array.isArray(product?.appointmentTypeIDs) ? product.appointmentTypeIDs.map(text) : [];
+    const counts = product?.appointmentTypeCounts || {};
+    return Boolean(id) && text(product?.type).toLowerCase() === "appointments" && ids.includes(id) && Number(counts[id]) === Number(count);
   }
 
   function findRelatedPackages(products, appointmentTypeID) {
@@ -60,7 +62,7 @@
     };
   }
 
-  const rules = { findPackageMatches, findRelatedPackages, inferLessonDetails, isConnectionUnavailable, mergeAcuityMapping };
+  const rules = { findPackageMatches, findRelatedPackages, inferLessonDetails, isConnectionUnavailable, isExactPackageProduct, mergeAcuityMapping };
   if (typeof module !== "undefined" && module.exports) module.exports = rules;
   else window.AcuityImportRules = rules;
 })();

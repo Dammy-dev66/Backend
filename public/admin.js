@@ -1383,7 +1383,9 @@
         const productSelect = row.tier === "pack6" || row.tier === "pack12" ? `<select data-import-field="product" aria-label="Package product for ${escapeHtml(row.source.name)}">${productOptions(row)}</select>` : `<span class="muted">Not needed</span>`;
         if (row.tier === "pack6" || row.tier === "pack12") {
           const chosenProduct = (state.acuityImportProducts || []).find((product) => String(product.id) === String(row.productID));
-          row.priceSource = chosenProduct && Number.isFinite(chosenProduct.price) ? { price: chosenProduct.price, label: `${chosenProduct.name} · Acuity product` } : null;
+          const requiredCount = row.tier === "pack6" ? 6 : 12;
+          const exactProduct = window.AcuityImportRules.isExactPackageProduct(chosenProduct, row.source.id, requiredCount);
+          row.priceSource = exactProduct && Number.isFinite(chosenProduct.price) ? { price: chosenProduct.price, label: `${chosenProduct.name} · Acuity product` } : null;
         }
         const sourcePrice = row.priceSource?.price;
         const targetSubjectId = defaultSubject.startsWith("new:") ? "" : defaultSubject;
@@ -1427,7 +1429,9 @@
         row.priceSource = Number.isFinite(row.source.price) ? { price: row.source.price, label: "Acuity appointment price" } : null;
       } else if (row.tier === "pack6" || row.tier === "pack12") {
         const product = row.productChoices?.find((item) => String(item.id) === String(row.productID));
-        row.priceSource = product && Number.isFinite(product.price) ? { price: product.price, label: `${product.name} · Acuity product` } : null;
+        const requiredCount = row.tier === "pack6" ? 6 : 12;
+        const exactProduct = window.AcuityImportRules.isExactPackageProduct(product, row.source.id, requiredCount);
+        row.priceSource = exactProduct && Number.isFinite(product.price) ? { price: product.price, label: `${product.name} · Acuity product` } : null;
       } else row.priceSource = null;
     });
     renderAcuityImport();
@@ -1509,7 +1513,13 @@
     const subjectAdds = [];
     for (const row of selected) {
       if (!row.subjectSelection || !row.format || !row.tier) throw new Error(`Complete the subject, format, and tier for “${row.source.name}” before saving.`);
-      if ((row.tier === "pack6" || row.tier === "pack12") && !row.productID) throw new Error(`Choose the matching Acuity package product for “${row.source.name}” before saving.`);
+      if (row.tier === "pack6" || row.tier === "pack12") {
+        const requiredCount = row.tier === "pack6" ? 6 : 12;
+        const product = state.acuityImportProducts.find((item) => String(item.id) === String(row.productID));
+        if (!window.AcuityImportRules.isExactPackageProduct(product, row.source.id, requiredCount)) {
+          throw new Error(`Choose an Acuity package linked to “${row.source.name}” with exactly ${requiredCount} sessions.`);
+        }
+      }
       const subject = selectedImportSubject(row, subjects);
       if (!subject) throw new Error(`Choose a valid website subject for “${row.source.name}”.`);
       if (!state.subjects.some((item) => item.id === subject.id)) subjectAdds.push(subject.name);
@@ -1562,6 +1572,13 @@
       }
       const subject = state.subjects.find((item) => item.id === row.subjectSelection);
       if (!subject) throw new Error(`Choose a saved subject for the price from “${row.source.name}”.`);
+      if (row.tier === "pack6" || row.tier === "pack12") {
+        const requiredCount = row.tier === "pack6" ? 6 : 12;
+        const product = state.acuityImportProducts.find((item) => String(item.id) === String(row.productID));
+        if (!window.AcuityImportRules.isExactPackageProduct(product, row.source.id, requiredCount)) {
+          throw new Error(`Choose an Acuity package linked to “${row.source.name}” with exactly ${requiredCount} sessions before importing its price.`);
+        }
+      }
       if (!row.priceSource || !Number.isFinite(row.priceSource.price)) throw new Error(`A price could not be read for “${row.source.name}”.`);
       const key = `${subject.id}|${row.format}|${row.tier}`;
       if (updates.has(key) && updates.get(key).value !== row.priceSource.price) throw new Error(`The selected Acuity types have different prices for the same website lesson slot (${subject.name}, ${priceLabel(row.format, row.tier)}).`);
