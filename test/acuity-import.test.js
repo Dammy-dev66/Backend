@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { normalizeAcuityImport } = require("../lib/acuity-import");
-const { findPackageMatches, findRelatedPackages, inferLessonDetails, isConnectionUnavailable } = require("../public/acuity-import-rules");
+const { findPackageMatches, findRelatedPackages, inferLessonDetails, isConnectionUnavailable, mergeAcuityMapping } = require("../public/acuity-import-rules");
 
 test("Acuity import normalization preserves useful data and treats blank prices as unavailable", () => {
   const normalized = normalizeAcuityImport([
@@ -32,6 +32,33 @@ test("Acuity connection setup errors are distinguished from unexpected failures"
   assert.equal(isConnectionUnavailable("Acuity is not connected to this environment."), true);
   assert.equal(isConnectionUnavailable("Acuity is not connected. Add the credentials to this deployment."), true);
   assert.equal(isConnectionUnavailable("Acuity request failed with 502."), false);
+});
+
+test("updating an Acuity mapping preserves a custom label and an inactive state", () => {
+  const existing = {
+    id: "service-1", subjectId: "subject-1", format: "oneToOne", tier: "single",
+    label: "Custom lesson name", appointmentTypeID: "7", active: false, order: 0,
+    calendarID: "4", bookingLink: "https://acuity.example/book", note: "Keep this note"
+  };
+  const merged = mergeAcuityMapping(existing, {
+    id: "service-2", subjectId: "subject-2", format: "oneToOne", tier: "single",
+    label: "Default lesson name", appointmentTypeID: "7", productID: "", calendarID: "", order: 9
+  });
+  assert.equal(merged.id, "service-1");
+  assert.equal(merged.label, "Custom lesson name");
+  assert.equal(merged.active, false);
+  assert.equal(merged.order, 0);
+  assert.equal(merged.calendarID, "4");
+  assert.equal(merged.bookingLink, "https://acuity.example/book");
+  assert.equal(merged.note, "Keep this note");
+});
+
+test("changing the lesson format or tier uses a fresh display label", () => {
+  const merged = mergeAcuityMapping(
+    { id: "service-1", format: "oneToOne", tier: "single", label: "Custom lesson name", active: true },
+    { id: "service-2", format: "oneToTwo", tier: "single", label: "Tutor + two students - Single lesson", order: 3 }
+  );
+  assert.equal(merged.label, "Tutor + two students - Single lesson");
 });
 
 test("package matching requires an Acuity appointment product linked to the exact lesson count", () => {

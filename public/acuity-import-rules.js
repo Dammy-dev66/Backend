@@ -46,7 +46,21 @@
     );
   }
 
-  const rules = { findPackageMatches, findRelatedPackages, inferLessonDetails, isConnectionUnavailable };
+  function mergeAcuityMapping(existing, incoming) {
+    const sameLesson = existing && existing.format === incoming.format && existing.tier === incoming.tier;
+    return {
+      ...incoming,
+      id: existing?.id || incoming.id,
+      label: sameLesson && existing.label ? existing.label : incoming.label,
+      calendarID: incoming.calendarID || existing?.calendarID || "",
+      bookingLink: existing?.bookingLink || incoming.bookingLink || "",
+      note: existing?.note || incoming.note || "",
+      order: existing?.order ?? incoming.order,
+      active: existing?.active !== false
+    };
+  }
+
+  const rules = { findPackageMatches, findRelatedPackages, inferLessonDetails, isConnectionUnavailable, mergeAcuityMapping };
   if (typeof module !== "undefined" && module.exports) module.exports = rules;
   else window.AcuityImportRules = rules;
 })();

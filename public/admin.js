@@ -1519,12 +1519,11 @@
       if (existing) seen.delete(`${existing.subjectId}|${existing.format}|${existing.tier}`);
       if (seen.has(collision)) throw new Error(`Two selected Acuity types map to the same website lesson slot: ${subject.name}, ${priceLabel(row.format, row.tier)}.`);
       seen.add(collision);
-      const item = {
-        id: existing?.id || newId("service"), subjectId: subject.id, format: row.format, tier: row.tier,
+      const item = window.AcuityImportRules.mergeAcuityMapping(existing, {
+        id: newId("service"), subjectId: subject.id, format: row.format, tier: row.tier,
         label: priceLabel(row.format, row.tier), appointmentTypeID: String(row.source.id),
-        productID: row.productID, calendarID: row.source.calendarIDs?.[0] || existing?.calendarID || "",
-        bookingLink: existing?.bookingLink || "", note: existing?.note || "", order: existing?.order || services.length + 1, active: true
-      };
+        productID: row.productID, calendarID: row.source.calendarIDs?.[0] || "", order: services.length + 1
+      });
       const index = services.findIndex((service) => service.id === item.id);
       if (index >= 0) services[index] = item;
       else services.unshift(item);
