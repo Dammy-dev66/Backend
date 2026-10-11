@@ -4,10 +4,10 @@ const assert = require("node:assert/strict");
 const blobPath = require.resolve("@vercel/blob");
 const helperPath = require.resolve("../lib/conditional-blob-write");
 
-function loadWithPut(put) {
+function loadWithPut(put, head = async () => ({ etag: "current-revision" })) {
   const originalBlob = require.cache[blobPath];
   const originalHelper = require.cache[helperPath];
-  require.cache[blobPath] = { exports: { put } };
+  require.cache[blobPath] = { exports: { head, put } };
   delete require.cache[helperPath];
   const helper = require("../lib/conditional-blob-write");
   return {
@@ -57,7 +57,7 @@ test("an ETag mismatch is reported as a retryable revision conflict", async () =
   try {
     await assert.rejects(
       helper.conditionalBlobWrite("finbar/test.json", "{}", { expectedEtag: "old-revision" }),
-      (error) => error.statusCode === 409 && error.code === "BLOB_WRITE_CONFLICT"
+      (error) => error.statusCode === 409 && error.code === "BLOB_WRITE_CONFLICT" && error.revisionChanged === true
     );
   } finally {
     helper.restore();
