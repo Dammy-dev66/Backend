@@ -2668,6 +2668,55 @@ h1 {
 .admin-tab-panel .section-actions button,
 .admin-toolbar button { flex: 0 0 auto; }
 
+.acuity-import {
+  width: min(1120px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(90vh, 920px);
+  padding: 0;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  background: #fffdf8;
+  box-shadow: 0 24px 80px #13243b42;
+}
+.acuity-import::backdrop { background: #13243b8a; }
+.acuity-import__close-wrap { position: absolute; top: 14px; right: 16px; }
+.acuity-import__close { border: 0; background: transparent; color: var(--ink); font: 400 27px/1 var(--body); cursor: pointer; }
+.acuity-import__head { padding: 28px 30px 20px; border-bottom: 1px solid var(--line); }
+.acuity-import__head h2 { margin: 3px 0 5px; font: 500 30px/1.1 var(--display); }
+.acuity-import__head > p:last-child { margin: 0; max-width: 70ch; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.acuity-import__body { max-height: calc(90vh - 190px); overflow: auto; padding: 20px 30px; }
+.acuity-import__body > .dashboard-loading { min-height: 220px; }
+.acuity-import__intro { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.acuity-import__table-wrap { overflow-x: auto; border: 1px solid var(--line); }
+.acuity-import__table { width: 100%; border-collapse: collapse; min-width: 870px; font-size: 12px; }
+.acuity-import__table th { position: sticky; top: 0; z-index: 1; padding: 10px; text-align: left; color: #344258; background: #f4f1ea; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.acuity-import__table td { padding: 10px; vertical-align: top; border-top: 1px solid var(--line); }
+.acuity-import__table tr.is-mapped { background: #f4f7fa; }
+.acuity-import__source { min-width: 205px; }
+.acuity-import__source strong, .acuity-import__source small { display: block; }
+.acuity-import__source small { margin-top: 4px; color: var(--muted); }
+.acuity-import__table select { width: 100%; min-width: 115px; padding: 8px; border: 1px solid var(--line); color: var(--ink); background: #fff; font: 12px var(--body); }
+.acuity-import__table input[type="checkbox"] { width: 17px; height: 17px; accent-color: #0a3d91; }
+.acuity-import__price { white-space: nowrap; color: var(--ink); font-weight: 700; }
+.acuity-import__price small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 400; }
+.acuity-import__price-choice { display: flex; align-items: center; gap: 5px; margin-top: 7px; color: #344258; font-size: 11px; }
+.acuity-import__price-choice input { width: 15px; height: 15px; margin: 0; accent-color: #0a3d91; }
+.acuity-import__notice { padding: 11px 13px; border-left: 3px solid #dda31d; background: #fbf7ec; color: #485366; font-size: 12px; line-height: 1.5; }
+.acuity-import__currency { display: flex; align-items: flex-start; gap: 9px; margin: 16px 0 10px; color: var(--ink); font-size: 12px; font-weight: 600; }
+.acuity-import__currency input { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; accent-color: #0a3d91; }
+.acuity-import__error { padding: 16px; border: 1px solid #e0b9b4; background: #fff5f3; color: #742e2a; font-size: 13px; line-height: 1.5; }
+.acuity-import__footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 30px; border-top: 1px solid var(--line); background: #fffdf8; }
+.acuity-import__footer[hidden] { display: none; }
+.acuity-import__footer > span { color: var(--muted); font-size: 12px; }
+.acuity-import__footer > span.has-error { color: #8a3028; }
+.acuity-import__footer > div { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.acuity-import__footer button.is-working::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -2px; border: 2px solid #ffffff80; border-top-color: currentColor; border-radius: 50%; animation: dashboard-spin .7s linear infinite; }
+@media (max-width: 650px) {
+  .acuity-import__head, .acuity-import__body { padding-left: 16px; padding-right: 16px; }
+  .acuity-import__footer { align-items: stretch; flex-direction: column; padding: 12px 16px; }
+  .acuity-import__footer > div { display: grid; grid-template-columns: 1fr; }
+}
+
 .admin-workspace button:focus-visible,
 .admin-workspace input:focus-visible,
 .admin-workspace select:focus-visible,

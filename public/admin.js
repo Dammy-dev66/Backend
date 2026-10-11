@@ -39,6 +39,7 @@
   const TEMPLATE_API = "/api/admin/coupons?resource=templates";
   const PROOF_TEMPLATE_API = "/api/admin/coupons?resource=proofreading-templates";
   const PRICING_API = "/api/admin/coupons?resource=pricing";
+  const ACUITY_IMPORT_API = "/api/admin/coupons?resource=acuity-import";
 
   const tabButtons = Array.from(document.querySelectorAll(".admin-tab"));
   const tabPanels = Array.from(document.querySelectorAll(".admin-tab-panel"));
@@ -70,6 +71,13 @@
   const couponSearchInput = document.getElementById("couponSearchInput");
   const subjectStatus = document.getElementById("subjectStatus");
   const serviceStatus = document.getElementById("serviceStatus");
+  const acuityImportBtn = document.getElementById("acuityImportBtn");
+  const acuityImportDialog = document.getElementById("acuityImportDialog");
+  const acuityImportBody = document.getElementById("acuityImportBody");
+  const acuityImportFooter = document.getElementById("acuityImportFooter");
+  const acuityImportStatus = document.getElementById("acuityImportStatus");
+  const saveImportedMappingsBtn = document.getElementById("saveImportedMappingsBtn");
+  const saveImportedPricesBtn = document.getElementById("saveImportedPricesBtn");
   const couponStatus = document.getElementById("couponStatus");
   const operationsSummary = document.getElementById("operationsSummary");
   const operationsList = document.getElementById("operationsList");
@@ -165,6 +173,8 @@
     pricing: { currency: "EUR", prices: {}, subjectPrices: {}, popup: {} },
     pricingBaseline: "",
     pricingServices: [],
+    acuityImportRows: [],
+    acuityPriceCurrencyConfirmed: false,
     bookingRevision: "",
     couponRevision: "",
     bookingBaseline: { subjects: [], services: [] },
@@ -235,7 +245,7 @@
     if (!state.pendingTasks) setActivity("saved", "Saved");
   }
 
-  async function runTask(button, label, work) {
+  async function runTask(button, label, work, options = {}) {
     if (button?.disabled) return;
     state.pendingTasks += 1;
     const originalLabel = button?.textContent;
@@ -245,12 +255,19 @@
       button.classList.add("is-working");
       button.textContent = label;
     }
+    if (options.localError) {
+      options.localError.classList.remove("has-error");
+      options.localError.textContent = `${label}…`;
+    }
     showError("");
     setActivity("loading", label);
     try {
       return await work();
     } catch (error) {
-      showError(error.message || "This action did not complete. Please try again.");
+      if (options.localError) {
+        options.localError.textContent = error.message || "This action did not complete. Please try again.";
+        options.localError.classList.add("has-error");
+      } else showError(error.message || "This action did not complete. Please try again.");
     } finally {
       state.pendingTasks -= 1;
       if (button) {
@@ -1318,6 +1335,267 @@
     [addSubjectBtn, addServiceBtn, addCouponBtn, saveBtn].forEach((button) => { button.disabled = false; });
     showStatus(`Loaded ${state.subjects.length} subjects, ${state.services.length} lesson types, and ${state.coupons.length} coupon(s).`);
   }
+
+  function importPriceFor(subjectId, format, tier) {
+    const matrix = state.pricing.subjectPrices?.[subjectId] || state.pricing.prices || {};
+    const value = matrix?.[format]?.[tier];
+    return Number.isFinite(Number(value)) ? Number(value) : null;
+  }
+
+  function productOptions(row) {
+    const requiredCount = row.tier === "pack6" ? 6 : row.tier === "pack12" ? 12 : 0;
+    const id = String(row.source.id);
+    const matches = (state.acuityImportProducts || []).filter((product) =>
+      String(product.type).toLowerCase() === "appointments" &&
+      product.appointmentTypeIDs.includes(id) &&
+      Number(product.appointmentTypeCounts[id]) === requiredCount
+    );
+    const related = (state.acuityImportProducts || []).filter((product) =>
+      String(product.type).toLowerCase() === "appointments" && product.appointmentTypeIDs.includes(id)
+    );
+    const choices = matches.length ? matches : related.length ? related : (state.acuityImportProducts || []).filter((product) => String(product.type).toLowerCase() === "appointments");
+    row.productChoices = choices;
+    if (row.productID && !choices.some((product) => String(product.id) === String(row.productID))) row.productID = "";
+    if (!row.productID && matches.length === 1) row.productID = matches[0].id;
+    return `<option value="">Choose package product…</option>${choices.map((item) => `<option value="${escapeHtml(item.id)}"${String(item.id) === String(row.productID) ? " selected" : ""}>${escapeHtml(item.name)}${matches.includes(item) ? "" : " · count needs checking"}</option>`).join("")}`;
+  }
+
+  function renderAcuityImport() {
+    const rows = state.acuityImportRows;
+    if (!rows.length) {
+      acuityImportBody.innerHTML = `<p class="acuity-import__notice">Acuity is connected, but it returned no appointment types to import.</p>`;
+      acuityImportFooter.hidden = true;
+      return;
+    }
+    const subjects = state.subjects.slice().sort((a, b) => a.name.localeCompare(b.name));
+    acuityImportBody.innerHTML = `
+      <p class="acuity-import__intro">${rows.length} Acuity appointment type${rows.length === 1 ? "" : "s"} found. Existing mappings are left unchecked and will not change unless you select them. Imported prices update the website and Stripe only; Acuity itself is never changed here.</p>
+      <div class="acuity-import__table-wrap"><table class="acuity-import__table"><thead><tr><th>Map</th><th>Acuity item</th><th>Website subject</th><th>Format</th><th>Tier</th><th>Package product</th><th>Price</th></tr></thead><tbody>
+      ${rows.map((row, index) => {
+        const unsupportedType = row.source.type && row.source.type !== "service";
+        const exactSubject = subjects.find((subject) => [subject.name, subject.label].some((name) => String(name || "").trim().toLowerCase() === row.source.category.toLowerCase()));
+        const defaultSubject = row.subjectSelection || exactSubject?.id || (row.source.category ? `new:${row.source.category}` : "");
+        const productSelect = row.tier === "pack6" || row.tier === "pack12" ? `<select data-import-field="product" aria-label="Package product for ${escapeHtml(row.source.name)}">${productOptions(row)}</select>` : `<span class="muted">Not needed</span>`;
+        if (row.tier === "pack6" || row.tier === "pack12") {
+          const chosenProduct = (state.acuityImportProducts || []).find((product) => String(product.id) === String(row.productID));
+          row.priceSource = chosenProduct && Number.isFinite(chosenProduct.price) ? { price: chosenProduct.price, label: `${chosenProduct.name} · Acuity product` } : null;
+        }
+        const sourcePrice = row.priceSource?.price;
+        const targetSubjectId = defaultSubject.startsWith("new:") ? "" : defaultSubject;
+        const currentWebsitePrice = targetSubjectId
+          ? importPriceFor(targetSubjectId, row.format, row.tier)
+          : Number(state.pricing.prices?.[row.format]?.[row.tier]);
+        const priceInfo = Number.isFinite(sourcePrice)
+          ? `<span class="acuity-import__price">Acuity ${sourcePrice.toFixed(2)}<small>${escapeHtml(row.priceSource.label)} · account currency</small><small>Website now: ${Number.isFinite(currentWebsitePrice) ? `EUR ${currentWebsitePrice.toFixed(2)}` : "not set"}</small></span>`
+          : `<span class="acuity-import__price">Unavailable<small>${row.tier === "pack6" || row.tier === "pack12" ? "Select an exact package product" : "Acuity has no price"}</small></span>`;
+        row.subjectSelection = defaultSubject;
+        return `<tr class="${row.existing ? "is-mapped" : ""}" data-import-row="${index}">
+          <td><input type="checkbox" data-import-field="include" aria-label="${row.existing ? "Update existing mapping" : "Import mapping"} for ${escapeHtml(row.source.name)}"${row.include ? " checked" : ""}${unsupportedType ? " disabled" : ""}></td>
+          <td class="acuity-import__source"><strong>${escapeHtml(row.source.name)}</strong><small>ID ${escapeHtml(row.source.id)}${row.existing ? " · Already mapped" : " · New mapping"}${row.source.category ? ` · ${escapeHtml(row.source.category)}` : ""}${unsupportedType ? ` · ${escapeHtml(row.source.type)} type not supported by this lesson flow` : ""}</small></td>
+          <td><select data-import-field="subject" aria-label="Website subject for ${escapeHtml(row.source.name)}"><option value="">Choose subject…</option>${subjects.map((subject) => `<option value="${escapeHtml(subject.id)}"${String(defaultSubject) === String(subject.id) ? " selected" : ""}>${escapeHtml(subjectDisplay(subject))}</option>`).join("")}${row.source.category && !exactSubject ? `<option value="new:${escapeHtml(row.source.category)}"${defaultSubject === `new:${row.source.category}` ? " selected" : ""}>Create “${escapeHtml(row.source.category)}”</option>` : ""}</select></td>
+          <td><select data-import-field="format" aria-label="Lesson format for ${escapeHtml(row.source.name)}"><option value="">Choose…</option><option value="oneToOne"${row.format === "oneToOne" ? " selected" : ""}>1:1</option><option value="oneToTwo"${row.format === "oneToTwo" ? " selected" : ""}>1:2</option></select></td>
+          <td><select data-import-field="tier" aria-label="Lesson tier for ${escapeHtml(row.source.name)}"><option value="">Choose…</option><option value="trial"${row.tier === "trial" ? " selected" : ""}>Trial</option><option value="single"${row.tier === "single" ? " selected" : ""}>Single</option><option value="pack6"${row.tier === "pack6" ? " selected" : ""}>6-class</option><option value="pack12"${row.tier === "pack12" ? " selected" : ""}>12-class</option></select></td>
+          <td>${productSelect}</td>
+          <td>${priceInfo}<label class="acuity-import__price-choice"><input type="checkbox" data-import-field="price" aria-label="Import price for ${escapeHtml(row.source.name)}"${row.importPrice ? " checked" : ""}${Number.isFinite(sourcePrice) && !unsupportedType ? "" : " disabled"}> Import</label></td>
+        </tr>`;
+      }).join("")}
+      </tbody></table></div>
+      <label class="acuity-import__currency"><input type="checkbox" id="acuityPriceCurrencyConfirm"${state.acuityPriceCurrencyConfirmed ? " checked" : ""}> I have confirmed Acuity uses EUR, the website's currency.</label>
+      <p class="acuity-import__notice">Acuity categories and names are suggestions only. Confirm the subject, format, tier, package count, and currency before saving. Acuity prices are in the Acuity account's currency; the website and Stripe use EUR.</p>`;
+    acuityImportFooter.hidden = false;
+    acuityImportStatus.textContent = "Nothing has been saved yet.";
+    saveImportedMappingsBtn.disabled = false;
+    saveImportedPricesBtn.disabled = !state.acuityPriceCurrencyConfirmed;
+  }
+
+  function readAcuityImportRows() {
+    acuityImportBody.querySelectorAll("[data-import-row]").forEach((element) => {
+      const row = state.acuityImportRows[Number(element.dataset.importRow)];
+      if (!row) return;
+      row.include = element.querySelector('[data-import-field="include"]').checked;
+      row.subjectSelection = element.querySelector('[data-import-field="subject"]').value;
+      row.format = element.querySelector('[data-import-field="format"]').value;
+      row.tier = element.querySelector('[data-import-field="tier"]').value;
+      row.productID = element.querySelector('[data-import-field="product"]')?.value || "";
+      row.importPrice = element.querySelector('[data-import-field="price"]').checked;
+      if (row.tier === "trial" || row.tier === "single") {
+        row.priceSource = Number.isFinite(row.source.price) ? { price: row.source.price, label: "Acuity appointment price" } : null;
+      } else if (row.tier === "pack6" || row.tier === "pack12") {
+        const product = row.productChoices?.find((item) => String(item.id) === String(row.productID));
+        row.priceSource = product && Number.isFinite(product.price) ? { price: product.price, label: `${product.name} · Acuity product` } : null;
+      } else row.priceSource = null;
+    });
+    renderAcuityImport();
+  }
+
+  async function openAcuityImport() {
+    if (state.dirtyTabs.has("services") || state.dirtyTabs.has("subjects") || state.dirtyTabs.has("pricing")) {
+      showError("Save or discard your current subject, lesson type, or price edits before opening the Acuity import.");
+      return;
+    }
+    if (!acuityImportDialog.open) {
+      acuityImportDialog.showModal();
+      state.acuityPriceCurrencyConfirmed = false;
+    }
+    acuityImportFooter.hidden = true;
+    acuityImportBody.innerHTML = `<div class="dashboard-loading"><span class="dashboard-loading__spinner" aria-hidden="true"></span>Loading appointment types and package products…</div>`;
+    await runTask(acuityImportBtn, "Loading Acuity", async () => {
+      let data;
+      try {
+        [data] = await Promise.all([api("GET", ACUITY_IMPORT_API), state.pricingBaseline ? Promise.resolve() : loadPricing()]);
+      } catch (error) {
+        acuityImportBody.innerHTML = `<div class="acuity-import__error"><strong>Could not load Acuity data.</strong><br>${escapeHtml(error.message)}<br><button class="btn-secondary" id="retryAcuityImportBtn" type="button">Try again</button></div>`;
+        acuityImportBody.querySelector("#retryAcuityImportBtn").addEventListener("click", openAcuityImport);
+        throw error;
+      }
+      state.acuityImportProducts = data.products || [];
+      state.acuityImportRows = (data.appointmentTypes || []).map((source) => {
+        const existing = state.services.find((service) => String(service.appointmentTypeID) === String(source.id));
+        const inferred = window.AcuityImportRules.inferLessonDetails(source.name);
+        const row = {
+          source,
+          existing,
+          include: false,
+          subjectSelection: existing?.subjectId || "",
+          format: existing?.format || inferred.format,
+          tier: existing?.tier || inferred.tier,
+          productID: existing?.productID || "",
+          importPrice: false,
+          priceSource: null
+        };
+        if (row.tier === "trial" || row.tier === "single") row.priceSource = Number.isFinite(source.price) ? { price: source.price, label: "Acuity appointment price" } : null;
+        return row;
+      });
+      renderAcuityImport();
+      showStatus(`Loaded ${state.acuityImportRows.length} Acuity lesson types for review. Nothing has been changed.`);
+    }, { localError: acuityImportStatus });
+  }
+
+  function selectedImportSubject(row, subjects) {
+    if (row.subjectSelection.startsWith("new:")) {
+      const proposedName = row.subjectSelection.slice(4).trim();
+      let subject = subjects.find((item) => item.name.toLowerCase() === proposedName.toLowerCase());
+      if (!subject) {
+        const slugBase = proposedName.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "subject";
+        let slug = slugBase;
+        let suffix = 2;
+        while (subjects.some((item) => item.slug === slug)) slug = `${slugBase}-${suffix++}`;
+        subject = { id: newId("subject"), name: proposedName, slug, label: proposedName, note: "", order: Math.max(0, ...subjects.map((item) => Number(item.order) || 0)) + 1, active: true };
+        subjects.push(subject);
+      }
+      return subject;
+    }
+    return subjects.find((item) => item.id === row.subjectSelection);
+  }
+
+  async function saveImportedMappings() {
+    readAcuityImportRows();
+    const selected = state.acuityImportRows.filter((row) => row.include);
+    if (!selected.length) throw new Error("Select at least one lesson type to save its mapping.");
+    const subjects = state.subjects.map(copySubject);
+    const services = state.services.map(copyService);
+    const seen = new Set(services.map((item) => `${item.subjectId}|${item.format}|${item.tier}`));
+    const subjectAdds = [];
+    for (const row of selected) {
+      if (!row.subjectSelection || !row.format || !row.tier) throw new Error(`Complete the subject, format, and tier for “${row.source.name}” before saving.`);
+      if ((row.tier === "pack6" || row.tier === "pack12") && !row.productID) throw new Error(`Choose the matching Acuity package product for “${row.source.name}” before saving.`);
+      const subject = selectedImportSubject(row, subjects);
+      if (!subject) throw new Error(`Choose a valid website subject for “${row.source.name}”.`);
+      if (!state.subjects.some((item) => item.id === subject.id)) subjectAdds.push(subject.name);
+      const existing = services.find((item) => String(item.appointmentTypeID) === String(row.source.id));
+      const collision = `${subject.id}|${row.format}|${row.tier}`;
+      if (!existing && seen.has(collision)) throw new Error(`“${row.source.name}” duplicates a subject, format, and tier already mapped. Review the selection before saving.`);
+      if (existing) seen.delete(`${existing.subjectId}|${existing.format}|${existing.tier}`);
+      if (seen.has(collision)) throw new Error(`Two selected Acuity types map to the same website lesson slot: ${subject.name}, ${priceLabel(row.format, row.tier)}.`);
+      seen.add(collision);
+      const item = {
+        id: existing?.id || newId("service"), subjectId: subject.id, format: row.format, tier: row.tier,
+        label: priceLabel(row.format, row.tier), appointmentTypeID: String(row.source.id),
+        productID: row.productID, calendarID: row.source.calendarIDs?.[0] || existing?.calendarID || "",
+        bookingLink: existing?.bookingLink || "", note: existing?.note || "", order: existing?.order || services.length + 1, active: true
+      };
+      const index = services.findIndex((service) => service.id === item.id);
+      if (index >= 0) services[index] = item;
+      else services.unshift(item);
+    }
+    const result = await saveBookingWithRevisionCheck(subjects, services);
+    state.subjects = result.subjects || subjects;
+    state.services = result.services || services;
+    state.bookingRevision = result.revision || state.bookingRevision;
+    state.bookingBaseline = { subjects: state.subjects.map(copySubject), services: state.services.map(copyService) };
+    renderServiceSubjectOptions();
+    renderServiceSubjectFilter();
+    renderSubjectList();
+    renderServiceList();
+    fillSubjectEditor(currentSubject() || {});
+    fillServiceEditor(currentService() || {});
+    state.acuityImportRows.filter((row) => row.include).forEach((row) => {
+      row.include = false;
+      row.existing = state.services.find((item) => String(item.appointmentTypeID) === String(row.source.id));
+      row.subjectSelection = row.existing?.subjectId || state.subjects.find((subject) => subject.name.toLowerCase() === row.source.category.toLowerCase())?.id || row.subjectSelection;
+    });
+    renderAcuityImport();
+    acuityImportStatus.textContent = `${selected.length} mapping${selected.length === 1 ? "" : "s"} saved${subjectAdds.length ? `; ${new Set(subjectAdds).size} new subject${new Set(subjectAdds).size === 1 ? "" : "s"} added` : ""}.`;
+    showStatus(`Acuity mappings saved. ${selected.length} lesson type${selected.length === 1 ? "" : "s"} now connected to the website.`);
+  }
+
+  async function saveImportedPrices() {
+    readAcuityImportRows();
+    if (!state.acuityPriceCurrencyConfirmed) throw new Error("Confirm that the Acuity account currency is EUR before applying prices to the website.");
+    const selected = state.acuityImportRows.filter((row) => row.importPrice);
+    if (!selected.length) throw new Error("Select one or more available Acuity prices to apply.");
+    const updates = new Map();
+    for (const row of selected) {
+      if (!row.subjectSelection || !row.format || !row.tier) throw new Error(`Complete the subject, format, and tier for the price from “${row.source.name}”.`);
+      if (row.subjectSelection.startsWith("new:") && !state.subjects.some((subject) => subject.name.toLowerCase() === row.subjectSelection.slice(4).toLowerCase())) {
+        throw new Error(`Save the new subject mapping for “${row.source.name}” before applying its price.`);
+      }
+      const subject = state.subjects.find((item) => item.id === row.subjectSelection);
+      if (!subject) throw new Error(`Choose a saved subject for the price from “${row.source.name}”.`);
+      if (!row.priceSource || !Number.isFinite(row.priceSource.price)) throw new Error(`A price could not be read for “${row.source.name}”.`);
+      const key = `${subject.id}|${row.format}|${row.tier}`;
+      if (updates.has(key) && updates.get(key).value !== row.priceSource.price) throw new Error(`The selected Acuity types have different prices for the same website lesson slot (${subject.name}, ${priceLabel(row.format, row.tier)}).`);
+      updates.set(key, { subject, format: row.format, tier: row.tier, value: row.priceSource.price });
+    }
+    const draft = JSON.parse(JSON.stringify(state.pricing));
+    draft.subjectPrices = draft.subjectPrices || {};
+    for (const { subject, format, tier, value } of updates.values()) {
+      if (!draft.subjectPrices[subject.id]) draft.subjectPrices[subject.id] = JSON.parse(JSON.stringify(draft.prices));
+      draft.subjectPrices[subject.id][format][tier] = value;
+    }
+    const data = await savePricingWithRevisionCheck(draft);
+    state.pricing = data.pricing || draft;
+    state.pricingBaseline = pricingContent(state.pricing);
+    state.pricingServices = data.services || state.pricingServices;
+    renderPricing();
+    state.acuityImportRows.filter((row) => row.importPrice).forEach((row) => { row.importPrice = false; });
+    renderAcuityImport();
+    acuityImportStatus.textContent = `${updates.size} website price${updates.size === 1 ? "" : "s"} applied. Acuity prices were not changed.`;
+    showStatus(`Website and Stripe prices updated for ${updates.size} selected lesson slot${updates.size === 1 ? "" : "s"}. Acuity was not changed.`);
+  }
+
+  acuityImportBtn.addEventListener("click", openAcuityImport);
+  acuityImportBody.addEventListener("change", (event) => {
+    if (event.target.id === "acuityPriceCurrencyConfirm") {
+      state.acuityPriceCurrencyConfirmed = event.target.checked;
+      saveImportedPricesBtn.disabled = !state.acuityPriceCurrencyConfirmed;
+      return;
+    }
+    if (event.target.matches("select, input[type='checkbox']")) {
+      const shouldResetPrice = event.target.matches("select");
+      readAcuityImportRows();
+      if (shouldResetPrice) {
+        const row = event.target.closest("[data-import-row]");
+        const index = Number(row?.dataset.importRow);
+        if (state.acuityImportRows[index]) {
+          state.acuityImportRows[index].importPrice = false;
+          renderAcuityImport();
+        }
+      }
+    }
+  });
+  saveImportedMappingsBtn.addEventListener("click", () => runTask(saveImportedMappingsBtn, "Saving mappings", saveImportedMappings, { localError: acuityImportStatus }));
+  saveImportedPricesBtn.addEventListener("click", () => runTask(saveImportedPricesBtn, "Applying prices", saveImportedPrices, { localError: acuityImportStatus }));
 
   function ensureSelectedAfterAdd(collection, item, idKey) {
     collection.unshift(item);

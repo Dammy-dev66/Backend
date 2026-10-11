@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=20261011-abc-release">
+  <link rel="stylesheet" href="/styles.css?v=20261011-acuity-import">
 </head>
 <body>
   <div class="admin-workspace">
@@ -218,6 +218,7 @@
           <div class="section-actions">
             <select id="serviceSubjectFilter" class="section-filter" aria-label="Filter lesson types by subject"><option value="">All subjects</option></select>
             <input id="serviceSearchInput" class="section-search" type="search" placeholder="Search lesson types">
+            <button class="btn-secondary" id="acuityImportBtn" type="button">Import from Acuity</button>
             <button class="btn-secondary" id="addServiceBtn" type="button">Add lesson type</button>
           </div>
         </div>
@@ -344,9 +345,25 @@
         </div>
       </section>
       </div>
+      <dialog class="acuity-import" id="acuityImportDialog" aria-labelledby="acuityImportTitle">
+        <form method="dialog" class="acuity-import__close-wrap"><button class="acuity-import__close" value="close" aria-label="Close import">×</button></form>
+        <div class="acuity-import__head">
+          <p class="dashboard-kicker">Booking setup</p>
+          <h2 id="acuityImportTitle">Import from Acuity</h2>
+          <p>Review Acuity lesson types, confirm how they match your website, then save mappings and prices separately.</p>
+        </div>
+        <div class="acuity-import__body" id="acuityImportBody">
+          <div class="dashboard-loading"><span class="dashboard-loading__spinner" aria-hidden="true"></span>Connecting to Acuity…</div>
+        </div>
+        <div class="acuity-import__footer" id="acuityImportFooter" hidden>
+          <span id="acuityImportStatus" role="status" aria-live="polite"></span>
+          <div><button class="btn-secondary" id="saveImportedPricesBtn" type="button">Apply selected prices</button><button class="btn-primary" id="saveImportedMappingsBtn" type="button">Save selected mappings</button></div>
+        </div>
+      </dialog>
     </main>
   </div>
-  <script src="/admin-merge.js?v=20261011-abc-release"></script>
-  <script src="/admin.js?v=20261011-abc-release"></script>
+  <script src="/acuity-import-rules.js?v=20261011-acuity-import"></script>
+  <script src="/admin-merge.js?v=20261011-acuity-import"></script>
+  <script src="/admin.js?v=20261011-acuity-import"></script>
 </body>
 </html>
