@@ -147,6 +147,7 @@
     fulfillmentIssues: [],
     actionIssues: [],
     backfillError: "",
+    operationsSyncWarning: "",
     selectedClientEmail: "",
     appointmentActionPending: false,
     templates: {},
@@ -674,9 +675,13 @@
     const backfillMarkup = state.backfillError
       ? `<strong>Stripe history import incomplete</strong><span>Some older package records may be missing. Refresh bookings to retry the import.</span><small>${escapeHtml(state.backfillError)}</small>`
       : "";
-    fulfillmentIssues.innerHTML = hasIssues
-      ? `${actionMarkup}${paymentMarkup}${backfillMarkup}`
+    const syncWarningMarkup = state.operationsSyncWarning
+      ? `<strong>Bookings loaded; details are catching up</strong><span>${escapeHtml(state.operationsSyncWarning)}</span>`
       : "";
+    fulfillmentIssues.innerHTML = hasIssues
+      ? `${actionMarkup}${paymentMarkup}${backfillMarkup}${syncWarningMarkup}`
+      : syncWarningMarkup;
+    fulfillmentIssues.classList.toggle("hidden", !hasIssues && !syncWarningMarkup);
     fulfillmentIssues.querySelectorAll("[data-reconcile-action]").forEach((button) => button.addEventListener("click", async () => {
       const resolution = button.dataset.packageResolution || "";
       let appointmentId = button.dataset.appointmentId || "";
@@ -734,9 +739,10 @@
     state.fulfillmentIssues = data.fulfillmentIssues || [];
     state.actionIssues = data.actionIssues || [];
     state.backfillError = data.backfillError || "";
+      state.operationsSyncWarning = data.syncWarning || "";
     renderOperations();
     if (data.backfillPending) {
-      window.setTimeout(() => loadOperations().catch((error) => showError(error.message)), 500);
+        window.setTimeout(() => loadOperations().catch((error) => showError(error.message)), 1800);
     }
   }
 

@@ -105,6 +105,61 @@ test("operations normalize live appointments and expose package balance badges",
   assert.match(historyStart(), /^\d{4}-\d{2}-\d{2}$/);
 });
 
+test("reconciling an unchanged appointment preserves its ledger timestamp", () => {
+  const ledger = defaultLedger();
+  const appointment = { id: "APT-UNCHANGED", email: "parent@example.com", status: "Scheduled", datetime: "2026-10-02T14:00:00Z" };
+  recordAppointment(ledger, appointment);
+  const firstUpdatedAt = ledger.appointments[0].updatedAt;
+  recordAppointment(ledger, appointment);
+  assert.equal(ledger.appointments[0].updatedAt, firstUpdatedAt);
+});
+
+test("operations still returns live bookings when ledger reconciliation hits a revision conflict", async () => {
+  const paths = {
+    api: require.resolve("../lib/admin-dashboard-api"),
+    acuity: require.resolve("../lib/acuity"),
+    booking: require.resolve("../lib/booking-config"),
+    ledger: require.resolve("../lib/operations-ledger")
+  };
+  const originals = Object.fromEntries(Object.entries(paths).map(([key, path]) => [key, require.cache[path]]));
+  const previousKey = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "operations-test-key";
+  const conflict = Object.assign(new Error("blob revision conflict"), { statusCode: 409, code: "BLOB_WRITE_CONFLICT" });
+  delete require.cache[paths.api];
+  require.cache[paths.acuity] = { exports: { listAppointments: async () => [{ id: "APT-LIVE", email: "parent@example.com", datetime: "2026-10-02T14:00:00Z", appointmentTypeID: "42" }] } };
+  require.cache[paths.booking] = { exports: { readBookingConfig: async () => ({ services: [] }) } };
+  require.cache[paths.ledger] = { exports: {
+    clientKey: (value) => String(value || "").toLowerCase(),
+    readLedger: async () => defaultLedger(),
+    updateLedger: async () => { throw conflict; },
+    upsertPackage() {}, recordAction() {}, recordAppointment() {}, recordReceipt() {}, receiptDeliveryFields() { return {}; }
+  } };
+  try {
+    const { handleOperations } = require("../lib/admin-dashboard-api");
+    const req = { method: "GET", headers: { "x-finbar-admin-key": "operations-test-key" }, url: "/api/admin/coupons?resource=operations" };
+    const res = {
+      statusCode: 0,
+      body: "",
+      headers: {},
+      setHeader(name, value) { this.headers[name] = value; },
+      writeHead(statusCode) { this.statusCode = statusCode; return this; },
+      end(body) { this.body = String(body || ""); return this; }
+    };
+    await handleOperations(req, res);
+    const response = JSON.parse(res.body);
+    assert.equal(res.statusCode, 200);
+    assert.equal(response.appointments[0].id, "APT-LIVE");
+    assert.match(response.syncWarning, /Bookings are shown below/);
+  } finally {
+    delete require.cache[paths.api];
+    for (const [key, path] of Object.entries(paths)) {
+      if (originals[key]) require.cache[path] = originals[key]; else delete require.cache[path];
+    }
+    if (previousKey === undefined) delete process.env.FINBAR_ADMIN_KEY;
+    else process.env.FINBAR_ADMIN_KEY = previousKey;
+  }
+});
+
 test("ledger records package purchases, booking use, receipt sends, and dashboard actions", () => {
   const ledger = defaultLedger();
   upsertPackage(ledger, { email: "parent@example.com", certificate: "PKG-1", appointmentTypeID: "42", tier: "pack6" });
