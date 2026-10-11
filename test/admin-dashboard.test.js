@@ -217,6 +217,60 @@ test("Operations loads live appointments without writing the ledger on every rea
   }
 });
 
+test("client details returns a live package balance without writing the ledger", async () => {
+  const paths = {
+    api: require.resolve("../lib/admin-dashboard-api"),
+    acuity: require.resolve("../lib/acuity"),
+    booking: require.resolve("../lib/booking-config"),
+    ledger: require.resolve("../lib/operations-ledger"),
+    operations: require.resolve("../lib/operations")
+  };
+  const originals = Object.fromEntries(Object.entries(paths).map(([key, path]) => [key, require.cache[path]]));
+  const previousKey = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "client-test-key";
+  const ledger = defaultLedger();
+  upsertPackage(ledger, { email: "parent@example.com", certificate: "PKG-1", appointmentTypeID: "42", remaining: 5, tier: "pack6" });
+  let writeAttempts = 0;
+  let certificateChecks = 0;
+  delete require.cache[paths.api];
+  delete require.cache[paths.operations];
+  require.cache[paths.acuity] = { exports: {
+    listAppointments: async () => [{ id: "APT-CLIENT", email: "parent@example.com", datetime: "2026-10-02T14:00:00Z", appointmentTypeID: "42", certificate: "PKG-1" }],
+    checkCertificate: async () => { certificateChecks += 1; return { remainingCounts: { "42": 3 } }; }
+  } };
+  require.cache[paths.booking] = { exports: { readBookingConfig: async () => ({ services: [] }) } };
+  require.cache[paths.ledger] = { exports: {
+    clientKey: (value) => String(value || "").trim().toLowerCase(),
+    readLedger: async () => normalizeLedger(JSON.parse(JSON.stringify(ledger))),
+    updateLedger: async () => { writeAttempts += 1; throw Object.assign(new Error("revision conflict"), { statusCode: 409 }); },
+    upsertPackage, recordAction, recordAppointment, recordReceipt, receiptDeliveryFields: () => ({})
+  } };
+  try {
+    const req = { method: "GET", headers: { "x-finbar-admin-key": "client-test-key" }, query: { email: "parent@example.com" }, url: "/api/admin/coupons?resource=client" };
+    const res = {
+      statusCode: 0,
+      body: "",
+      writeHead(statusCode) { this.statusCode = statusCode; return this; },
+      end(body) { this.body = String(body || ""); return this; }
+    };
+    await require(paths.api).handleDashboardResource(req, res, "client");
+    const response = JSON.parse(res.body);
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(certificateChecks, 1);
+    assert.equal(writeAttempts, 0);
+    assert.deepEqual(response.appointments[0].packageRemaining, [3]);
+    assert.equal(response.packages[0].remaining, 3);
+  } finally {
+    delete require.cache[paths.api];
+    delete require.cache[paths.operations];
+    for (const [key, path] of Object.entries(paths)) {
+      if (originals[key]) require.cache[path] = originals[key]; else delete require.cache[path];
+    }
+    if (previousKey === undefined) delete process.env.FINBAR_ADMIN_KEY;
+    else process.env.FINBAR_ADMIN_KEY = previousKey;
+  }
+});
+
 test("operations exposes whether a late-change refund has already been recorded", () => {
   const appointment = normalizeAppointment(
     { id: "APT-2", email: "parent@example.com", datetime: "2026-10-02T14:00:00Z", appointmentTypeID: "42" },
