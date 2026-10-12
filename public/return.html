@@ -18,6 +18,13 @@
       <h1 id="confirmTitle">Checking your payment.</h1>
       <p class="lede" id="confirmLead">Please wait while we confirm the payment and booking.</p>
       <div class="summary" id="confirmSummary"></div>
+      <section class="meeting-details hidden" id="meetingDetails" aria-label="Online lesson details">
+        <p class="meeting-details__eyebrow">ONLINE CLASSROOM</p>
+        <h2>VOOV / Tencent Meeting</h2>
+        <p>Your lesson will take place online. Use the link below to join.</p>
+        <a id="meetingJoinLink" href="https://voovmeeting.com/p/7360852010" target="_blank" rel="noopener noreferrer">Join the VOOV meeting</a>
+        <p class="meeting-details__id">Tencent Meeting ID: <strong id="meetingId">736-085-2010</strong></p>
+      </section>
       <p class="field-error" id="confirmError"></p>
       <a class="btn-link hidden" id="bookLink" href="/">Book again</a>
     </main>
@@ -37,6 +44,9 @@
     const summary = document.getElementById("confirmSummary");
     const error = document.getElementById("confirmError");
     const bookLink = document.getElementById("bookLink");
+    const meetingDetails = document.getElementById("meetingDetails");
+    const meetingJoinLink = document.getElementById("meetingJoinLink");
+    const meetingId = document.getElementById("meetingId");
 
     const subject = params.get("subject") || saved.subject || "your lesson";
     const format = params.get("format") || saved.format || "";
@@ -140,6 +150,16 @@
               ? "Check your email for your package code and booking details. Contact Finbar if they do not arrive."
               : "Check your email for the lesson details. Contact Finbar if they do not arrive.";
           if (data.kind !== "package") {
+            try {
+              const joinUrl = new URL(data.meetingPlatform?.joinUrl || "");
+              if (joinUrl.protocol === "https:") {
+                meetingJoinLink.href = joinUrl.toString();
+                meetingId.textContent = data.meetingPlatform.meetingId || "";
+                meetingDetails.classList.remove("hidden");
+              }
+            } catch {
+              meetingDetails.classList.add("hidden");
+            }
             prepareBookAgain(data.subject || subject);
             bookLink.classList.remove("hidden");
           }

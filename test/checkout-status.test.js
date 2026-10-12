@@ -80,6 +80,19 @@ test("completed package status requires a certificate and reports email acceptan
   assert.equal(result.body.emailDeliveryStatus, "accepted");
   assert.equal(result.body.kind, "package");
   assert.equal(Object.hasOwn(result.body, "certificate"), false);
+  assert.equal(result.body.meetingPlatform, null);
+});
+
+test("completed paid lesson status returns the VOOV meeting details", async () => {
+  const { handler } = loadHandler({
+    productID: "",
+    event: { status: "completed", appointmentID: "APT-1", emailDeliveryStatus: "accepted" }
+  });
+  const result = await getStatus(handler);
+  assert.equal(result.body.fulfillmentStatus, "completed");
+  assert.equal(result.body.meetingPlatform.name, "VOOV / Tencent Meeting");
+  assert.equal(result.body.meetingPlatform.joinUrl, "https://voovmeeting.com/p/7360852010");
+  assert.equal(result.body.meetingPlatform.meetingId, "736-085-2010");
 });
 
 test("failed or incomplete fulfillment requires review, not a success message", async () => {

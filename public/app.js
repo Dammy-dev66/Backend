@@ -30,6 +30,7 @@ const DEFAULT_CLASS_DATA = [
 let CLASS_DATA = DEFAULT_CLASS_DATA.slice();
 let PRICING_STATE = null;
 let BOOKING_CONFIG_READY = false;
+let MEETING_PLATFORM = null;
 
 const DEFAULT_FORMATS = [
   { key: "oneToOne", label: "Tutor + one student", price: { trial: 25, single: 50, pack6: 264, pack12: 456 } },
@@ -124,6 +125,7 @@ async function loadBookingConfig() {
     if (res.ok && data.ok && Array.isArray(data.subjects) && Array.isArray(data.services) && data.pricing?.prices) {
       CLASS_DATA = convertBookingConfigToClassData(data);
       PRICING_STATE = data.pricing;
+      MEETING_PLATFORM = data.meetingPlatform || null;
       BOOKING_CONFIG_READY = true;
       return;
     }
@@ -973,6 +975,17 @@ async function finishBooking() {
     }
     return li;
   }));
+  const meetingPanel = $("meetingDetails");
+  const meetingLink = $("meetingJoinLink");
+  const meetingId = $("meetingId");
+  const safeMeetingLink = safeWebUrl(MEETING_PLATFORM?.joinUrl);
+  if (confirmed.length && safeMeetingLink && MEETING_PLATFORM?.meetingId) {
+    meetingLink.href = safeMeetingLink;
+    meetingId.textContent = MEETING_PLATFORM.meetingId;
+    meetingPanel.classList.remove("hidden");
+  } else {
+    meetingPanel.classList.add("hidden");
+  }
   showTutorWhatsAppLink();
   setStep(4);
 }

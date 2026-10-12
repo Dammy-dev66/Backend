@@ -7,6 +7,7 @@ const {
   buildReceiptSubject,
   buildSessionsLink,
   buildBookingConfirmationPayload,
+  buildEmailPayload,
   sendBookingConfirmationEmails
 } = require("../lib/receipt-email");
 
@@ -137,6 +138,38 @@ test("package redemption confirmation shows the lesson without inventing a new p
     totalPrice: 70
   });
   assert.match(paid.html, /Total: EUR 70\.00/);
+});
+
+test("lesson booking confirmations include shared VOOV details but package purchase receipts do not", () => {
+  const booking = buildBookingConfirmationPayload({
+    customerEmail: "student@example.com",
+    subject: "Literary Classics",
+    format: "oneToOne",
+    tier: "single",
+    appointmentID: "12345"
+  });
+  assert.match(booking.html, /VOOV \/ Tencent Meeting/);
+  assert.match(booking.html, /https:\/\/voovmeeting\.com\/p\/7360852010/);
+  assert.match(booking.html, /736-085-2010/);
+  assert.match(booking.text, /Join the VOOV meeting: https:\/\/voovmeeting\.com\/p\/7360852010/);
+  assert.match(booking.finHtml, /Join the VOOV meeting/);
+  assert.match(booking.finHtml, /736-085-2010/);
+
+  const packageReceipt = buildReceiptPayload({ customerEmail: "student@example.com", subject: "Literary Classics", tier: "pack6" });
+  assert.doesNotMatch(packageReceipt.html, /voovmeeting|Tencent Meeting ID/i);
+  assert.doesNotMatch(packageReceipt.text, /voovmeeting|Tencent Meeting ID/i);
+});
+
+test("reschedule emails include the fixed VOOV meeting details", () => {
+  const email = buildEmailPayload({
+    kind: "rescheduled",
+    customerEmail: "student@example.com",
+    subject: "AP Psychology",
+    appointmentID: "12345",
+    bookingDate: "2026-10-20T10:00:00Z"
+  });
+  assert.match(email.html, /voovmeeting\.com\/p\/7360852010/);
+  assert.match(email.text, /Tencent Meeting ID: 736-085-2010/);
 });
 
 test("receipt payload defaults Fin's copy address when production configuration is empty", () => {

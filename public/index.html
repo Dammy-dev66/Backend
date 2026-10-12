@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=20261012-voov-details">
 </head>
 <body>
   <div class="page">
@@ -125,6 +125,13 @@
         <p class="eyebrow">Done</p>
         <h1 id="finishTitle">Booking ready.</h1>
         <p class="lede" id="finishMessage"></p>
+        <section class="meeting-details hidden" id="meetingDetails" aria-label="Online lesson details">
+          <p class="meeting-details__eyebrow">ONLINE CLASSROOM</p>
+          <h2>VOOV / Tencent Meeting</h2>
+          <p>Your lesson will take place online. Use the link below to join.</p>
+          <a id="meetingJoinLink" href="https://voovmeeting.com/p/7360852010" target="_blank" rel="noopener noreferrer">Join the VOOV meeting</a>
+          <p class="meeting-details__id">Tencent Meeting ID: <strong id="meetingId">736-085-2010</strong></p>
+        </section>
         <ul class="confirmed-list" id="confirmedList"></ul>
         <div class="whatsapp-cta hidden" id="chatTutorCta">
           <p class="whatsapp-help">Have a question about your booking? Message Fin, your tutor, on WhatsApp and he will help you.</p>
@@ -139,6 +146,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=20261012-voov-details"></script>
 </body>
 </html>

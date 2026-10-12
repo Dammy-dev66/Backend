@@ -1,6 +1,7 @@
 const { handleOptions, sendJson } = require("../lib/http");
 const { getStripeClient, isSessionPaid } = require("../lib/stripe");
 const { readLedger } = require("../lib/operations-ledger");
+const { MEETING_PLATFORM } = require("../lib/meeting-platform");
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -48,7 +49,8 @@ module.exports = async function handler(req, res) {
       return sendJson(req, res, 200, {
         ...details,
         fulfillmentStatus,
-        emailDeliveryStatus: fulfillmentStatus === "completed" ? cleanString(event.emailDeliveryStatus) || "unknown" : "unknown"
+        emailDeliveryStatus: fulfillmentStatus === "completed" ? cleanString(event.emailDeliveryStatus) || "unknown" : "unknown",
+        meetingPlatform: fulfillmentStatus === "completed" && details.kind === "booking" ? MEETING_PLATFORM : null
       });
     } catch {
       return sendJson(req, res, 503, {

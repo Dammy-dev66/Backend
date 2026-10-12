@@ -336,6 +336,51 @@ h1 {
   background: #f0fbf4;
 }
 
+.meeting-details {
+  margin: 18px 0;
+  padding: 18px 20px;
+  border: 1px solid #cbd8e7;
+  background: #f4f7fb;
+  color: var(--ink);
+}
+
+.meeting-details__eyebrow {
+  margin: 0 0 6px;
+  color: #a56b00;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.meeting-details h2 {
+  margin: 0 0 6px;
+  font: 500 20px/1.2 Georgia, "Times New Roman", serif;
+}
+
+.meeting-details p:not(.meeting-details__eyebrow):not(.meeting-details__id) {
+  margin: 0 0 12px;
+  color: #536176;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.meeting-details a {
+  display: inline-block;
+  padding: 10px 14px;
+  background: var(--ink);
+  color: #fffdf8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.meeting-details a:hover,
+.meeting-details a:focus-visible { background: #0a3d91; }
+.meeting-details__id { margin: 12px 0 0; color: #536176; font-size: 13px; }
+.meeting-details__id strong { color: var(--ink); }
+
 .whatsapp-help {
   margin: 0 0 12px;
   color: #174b2d;

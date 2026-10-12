@@ -10,6 +10,7 @@ const {
 const { listPackageKeys, PACKAGE_LABELS, TIER_LABELS } = require("../lib/pricing");
 const { readPriceState } = require("../lib/price-config");
 const { cleanString, requireAdminKey } = require("../lib/admin-auth");
+const { MEETING_PLATFORM } = require("../lib/meeting-platform");
 
 function buildPackageCatalog() {
   return listPackageKeys().map((key) => {
@@ -41,6 +42,7 @@ module.exports = async function handler(req, res) {
         subjects: listSubjectCatalog(enrichedConfig),
         services: listServiceCatalog(enrichedConfig),
         packageCatalog: buildPackageCatalog(),
+        meetingPlatform: MEETING_PLATFORM,
         serviceMap: enrichedConfig.serviceMap,
         revision: config._revision || "",
         pricing
