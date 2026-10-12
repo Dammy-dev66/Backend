@@ -156,6 +156,7 @@
     selectedCouponCode: "",
     operations: [],
     operationsSummary: {},
+    operationsFilter: "upcoming",
     fulfillmentIssues: [],
     actionIssues: [],
     backfillError: "",
@@ -877,17 +878,27 @@
         if (state.selectedClientEmail) await loadClient(state.selectedClientEmail);
       } catch (error) { showError(error.message); }
     }));
-    operationsSummary.innerHTML = [
-      ["Today", summary.today || 0],
-      ["Upcoming", summary.upcoming || 0],
-      ["Recent", summary.recent || 0],
-      ["Canceled", summary.canceled || 0]
-    ].map(([label, value]) => `<div class="operation-stat"><strong>${value}</strong><span>${label}</span></div>`).join("");
+    const operationFilters = [
+      ["today", "Today", summary.today || 0],
+      ["upcoming", "Upcoming", summary.upcoming || 0],
+      ["recent", "Recent", summary.recent || 0],
+      ["canceled", "Canceled", summary.canceled || 0],
+      ["all", "All bookings", state.operations.length]
+    ];
+    operationsSummary.innerHTML = operationFilters.map(([filter, label, value]) =>
+      `<button type="button" class="operation-stat${state.operationsFilter === filter ? " selected" : ""}" data-operation-filter="${filter}" aria-pressed="${state.operationsFilter === filter}"><strong>${value}</strong><span>${label}</span></button>`
+    ).join("");
+    operationsSummary.querySelectorAll("[data-operation-filter]").forEach((button) => button.addEventListener("click", () => {
+      state.operationsFilter = button.dataset.operationFilter;
+      renderOperations();
+    }));
 
     const query = operationSearchInput.value.trim().toLowerCase();
-    const items = state.operations.filter((item) => !query || [item.clientName, item.email, item.subject, item.appointmentTypeName].some((value) => String(value || "").toLowerCase().includes(query)));
+    const items = query
+      ? state.operations.filter((item) => [item.clientName, item.email, item.subject, item.appointmentTypeName].some((value) => String(value || "").toLowerCase().includes(query)))
+      : window.OperationsView.filterOperations(state.operations, state.operationsFilter, new Date().toISOString().slice(0, 10));
     if (!items.length) {
-      operationsList.innerHTML = `<p class="muted">No bookings match this view.</p>`;
+      operationsList.innerHTML = `<p class="muted">${query ? "No bookings match your search." : "No bookings in this view."}</p>`;
       return;
     }
     operationsList.innerHTML = items.map((item) => `
@@ -1943,7 +1954,10 @@
     });
   });
 
-  operationSearchInput.addEventListener("input", renderOperations);
+  operationSearchInput.addEventListener("input", () => {
+    state.operationsFilter = operationSearchInput.value.trim() ? "all" : "upcoming";
+    renderOperations();
+  });
   refreshOperationsBtn.addEventListener("click", () => runTask(refreshOperationsBtn, "Loading bookings", loadOperations));
   refreshPricingBtn.addEventListener("click", () => {
     if (state.dirtyTabs.has("pricing")) return showError("Save or discard your pricing edits before refreshing.");
