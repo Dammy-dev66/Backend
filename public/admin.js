@@ -38,6 +38,7 @@
   const RECEIPT_API = "/api/admin/coupons?resource=receipt";
   const TEMPLATE_API = "/api/admin/coupons?resource=templates";
   const PROOF_TEMPLATE_API = "/api/admin/coupons?resource=proofreading-templates";
+  const PROOF_PREVIEW_API = "/api/admin/coupons?resource=proofreading-preview";
   const PRICING_API = "/api/admin/coupons?resource=pricing";
   const ACUITY_IMPORT_API = "/api/admin/coupons?resource=acuity-import";
 
@@ -192,6 +193,8 @@
       coupons: ""
     }
   };
+  let proofPreviewTimer = 0;
+  let proofPreviewSequence = 0;
 
   function newId(prefix) {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -1225,23 +1228,26 @@
 
   function renderProofreadingEmailPreview() {
     const kind = state.selectedProofreadingTemplateKind;
-    const values = { clientName: "Jordan", serviceLevel: "Premium", wordCount: "1,250", deadline: "Friday, 2 October", price: "EUR 48.00", reference: "PRF-1064" };
-    const interpolate = (value) => String(value || "").replace(/\{(\w+)\}/g, (_, key) => values[key] || "");
-    const internal = kind === "reviewDocument" || kind === "reviewPasted";
+    const sequence = ++proofPreviewSequence;
     const template = {
-      heading: interpolate(proofTemplateHeadingInput.value),
-      message: interpolate(proofTemplateMessageInput.value),
-      ctaLabel: interpolate(proofTemplateCtaInput.value),
-      note: interpolate(proofTemplateNoteInput.value)
+      subject: proofTemplateSubjectInput.value,
+      heading: proofTemplateHeadingInput.value,
+      message: proofTemplateMessageInput.value,
+      ctaLabel: proofTemplateCtaInput.value,
+      extraNote: proofTemplateNoteInput.value
     };
-    const requestRows = internal
-      ? `<tr><td>Client</td><td>Jordan Taylor</td></tr><tr><td>Email</td><td>jordan@example.com</td></tr><tr><td>Service level</td><td>${values.serviceLevel}</td></tr><tr><td>Word count</td><td>${values.wordCount} words</td></tr><tr><td>English preference</td><td>UK English</td></tr><tr><td>Deadline</td><td>${values.deadline}</td></tr><tr><td>Fee</td><td>${values.price}</td></tr><tr><td>Reference</td><td>${values.reference}</td></tr>`
-      : `<tr><td>Service level</td><td>${values.serviceLevel}</td></tr><tr><td>Word count</td><td>${values.wordCount} words</td></tr><tr><td>English preference</td><td>UK English</td></tr><tr><td>Reference</td><td>${values.reference}</td></tr>`;
-    const internalExtras = `${kind === "reviewDocument" && template.ctaLabel ? `<p class="proof-email-preview__button-row"><button type="button">${escapeHtml(template.ctaLabel)}</button></p>` : ""}<div class="proof-email-preview__submitted"><strong>${kind === "reviewDocument" ? "Editing instructions" : "Submitted text"}</strong><p>${kind === "reviewDocument" ? "Please preserve the writer's voice and return a polished academic edit." : "This is a sample of the pasted text Fin will review before deciding."}</p></div><div class="proof-email-preview__actions"><button class="proof-email-preview__accept" type="button">Accept and charge</button><button class="proof-email-preview__decline" type="button">Decline request</button></div>`;
-    const customerExtras = kind === "accepted"
-      ? `<div class="proof-email-preview__deadline"><strong>Your work will be returned by</strong><span>${values.deadline}</span></div><div class="proof-email-preview__receipt"><strong>Payment receipt</strong><span>Amount charged: ${values.price}<br>Reference: ${values.reference}</span></div>`
-      : `<div class="proof-email-preview__deadline"><strong>Payment status</strong><span>Nothing has been charged.</span></div>`;
-    proofEmailPreview.innerHTML = `<div class="proof-email-preview"><div class="proof-email-preview__header"><img src="/assets/finbar-horizontal-logo-aligned.png" alt="Finbar B. Elite Tutoring"><p>${internal ? "Proofreading review" : kind === "accepted" ? "Task accepted" : "Request update"}</p><h3>${escapeHtml(template.heading)}</h3></div><div class="proof-email-preview__body"><p class="proof-email-preview__greeting">${internal ? "Hi Fin," : "Hi Jordan,"}</p><p>${escapeHtml(template.message)}</p><table><tbody>${requestRows}</tbody></table>${internal ? internalExtras : customerExtras}<p class="proof-email-preview__note">${escapeHtml(template.note)}</p></div><div class="proof-email-preview__footer">Questions about this request? Reply directly to this email.</div></div>`;
+    window.clearTimeout(proofPreviewTimer);
+    proofEmailPreview.innerHTML = `<div class="proof-email-preview__status"><span class="dashboard-loading__spinner" aria-hidden="true"></span>Updating email preview...</div>`;
+    proofPreviewTimer = window.setTimeout(async () => {
+      try {
+        const result = await api("POST", PROOF_PREVIEW_API, { kind, template });
+        if (sequence !== proofPreviewSequence) return;
+        proofEmailPreview.innerHTML = `<div class="proof-email-preview__subject"><span>EMAIL SUBJECT</span><strong>${escapeHtml(result.subject)}</strong></div><iframe class="proof-email-preview__frame" title="Proofreading email preview" sandbox referrerpolicy="no-referrer" srcdoc="${escapeHtml(result.html)}"></iframe><p class="proof-email-preview__caption">Sample details shown. Email actions are disabled in preview.</p>`;
+      } catch (error) {
+        if (sequence !== proofPreviewSequence) return;
+        proofEmailPreview.innerHTML = `<div class="dashboard-load-error"><strong>Email preview could not be updated.</strong><span>${escapeHtml(error.message)}</span></div>`;
+      }
+    }, 240);
   }
 
   async function loadProofreadingTemplates() {

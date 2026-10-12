@@ -148,6 +148,44 @@ test("proofreading templates retain defaults and render escaped, fixed review ac
   assert.match(email.html, /action=refuse/);
 });
 
+test("proofreading template preview uses sample data and inert actions for every email", async () => {
+  const previousKey = process.env.FINBAR_ADMIN_KEY;
+  process.env.FINBAR_ADMIN_KEY = "preview-test-key";
+  const kinds = ["reviewDocument", "reviewPasted", "accepted", "declined"];
+  try {
+    for (const kind of kinds) {
+      const req = Readable.from([Buffer.from(JSON.stringify({
+        kind,
+        template: { subject: "Review for {clientName}", heading: "<script>alert(1)</script>", message: "Check {wordCount} words", ctaLabel: "Download document", extraNote: "Sample preview" }
+      }))]);
+      req.method = "POST";
+      req.headers = { "x-finbar-admin-key": "preview-test-key" };
+      const res = {
+        statusCode: 0,
+        body: "",
+        headers: {},
+        setHeader(name, value) { this.headers[name] = value; },
+        writeHead(statusCode) { this.statusCode = statusCode; return this; },
+        end(body) { this.body = String(body || ""); return this; }
+      };
+      await handleDashboardResource(req, res, "proofreading-preview");
+      const response = JSON.parse(res.body);
+      assert.equal(res.statusCode, 200, res.body);
+      assert.equal(response.subject, "Review for Jordan Taylor");
+      assert.match(response.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+      assert.doesNotMatch(response.html, /<a\s|action=accept|action=refuse|href=/i);
+      assert.match(response.html, /PRF-SAMPLE/);
+      if (kind === "reviewDocument" || kind === "reviewPasted") {
+        assert.match(response.html, /jordan@example\.com/);
+        assert.match(response.html, /Accept and charge/);
+      }
+    }
+  } finally {
+    if (previousKey === undefined) delete process.env.FINBAR_ADMIN_KEY;
+    else process.env.FINBAR_ADMIN_KEY = previousKey;
+  }
+});
+
 test("operations normalize live appointments and expose package balance badges", () => {
   const ledger = defaultLedger();
   upsertPackage(ledger, { email: "parent@example.com", certificate: "PKG-1", appointmentTypeID: "42", remaining: 4, subject: "AP Psychology" });
