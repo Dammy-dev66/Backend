@@ -115,10 +115,20 @@
       bookLink.classList.add("hidden");
     }
 
+    function showIncompleteCheckout() {
+      eyebrow.textContent = "Payment status";
+      title.textContent = "Payment has not been completed.";
+      lead.textContent = "This confirmation page is available after Stripe confirms a payment. No payment has been taken from this page.";
+      error.textContent = "Return to booking to continue securely.";
+      prepareBookAgain(subject);
+      bookLink.textContent = "Return to booking";
+      bookLink.classList.remove("hidden");
+    }
+
     async function checkPayment() {
       const sessionId = params.get("session_id") || "";
-      if (!sessionId) {
-        showUnverified("This page has no checkout session to check.");
+      if (!sessionId || sessionId === "{CHECKOUT_SESSION_ID}") {
+        showIncompleteCheckout();
         return;
       }
 
