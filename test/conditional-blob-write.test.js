@@ -64,6 +64,23 @@ test("an ETag mismatch is reported as a retryable revision conflict", async () =
   }
 });
 
+test("a weak ETag is normalized before a conditional Blob write", async () => {
+  const calls = [];
+  const helper = loadWithPut(async (_pathname, _body, options) => {
+    calls.push(options);
+    return { etag: "\"revision-2\"" };
+  });
+  try {
+    await helper.conditionalBlobWrite("finbar/test.json", "{}", {
+      expectedEtag: "W/\"revision-1\""
+    });
+    assert.equal(calls[0].ifMatch, "\"revision-1\"");
+    assert.equal(calls[0].allowOverwrite, true);
+  } finally {
+    helper.restore();
+  }
+});
+
 test("ledger updates recover after repeated short-lived Blob revision conflicts", async () => {
   const operationsPath = require.resolve("../lib/operations-ledger");
   const originalOperations = require.cache[operationsPath];
