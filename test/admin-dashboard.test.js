@@ -146,6 +146,8 @@ test("proofreading templates retain defaults and render escaped, fixed review ac
   assert.match(email.html, /&lt;unsafe&gt;/);
   assert.match(email.html, /action=accept/);
   assert.match(email.html, /action=refuse/);
+  assert.match(email.html, /submission_id=PRF-1/);
+  assert.doesNotMatch(email.html, /[?&]id=PRF-1/);
 });
 
 test("proofreading template preview uses sample data and inert actions for every email", async () => {
