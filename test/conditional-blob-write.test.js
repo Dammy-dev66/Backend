@@ -74,16 +74,18 @@ test("ledger updates recover after repeated short-lived Blob revision conflicts"
   let content = JSON.stringify({ version: 1, packages: [], receipts: [], appointments: [], actions: [], stripeEvents: [], policySnapshots: [], lastBackfillAt: "", backfillVersion: 2, stripeBackfillCursor: "", backfillError: "" });
   let etag = "revision-0";
   let attempts = 0;
+  const expectedEtags = [];
   process.env.VERCEL = "1";
   delete process.env.VERCEL_ENV;
-  require.cache[blobPath] = { exports: { get: async () => ({
+  require.cache[blobPath] = { exports: { head: async () => ({ etag }), get: async () => ({
     statusCode: 200,
     stream: new ReadableStream({ start(controller) { controller.enqueue(Buffer.from(content)); controller.close(); } }),
-    blob: { etag }
+    blob: { etag: `W/${etag}` }
   }) } };
   require.cache[helperPath] = { exports: {
-    conditionalBlobWrite: async (_pathname, body) => {
+    conditionalBlobWrite: async (_pathname, body, options) => {
       attempts += 1;
+      expectedEtags.push(options.expectedEtag);
       if (attempts <= 5) throw Object.assign(new Error("revision conflict"), { statusCode: 409 });
       content = body;
       etag = `revision-${attempts}`;
@@ -98,6 +100,7 @@ test("ledger updates recover after repeated short-lived Blob revision conflicts"
       return state;
     });
     assert.equal(attempts, 6);
+    assert.deepEqual(expectedEtags, ["revision-0", "revision-0", "revision-0", "revision-0", "revision-0", "revision-0"]);
     assert.equal(result.lastBackfillAt, "2026-10-11T00:00:00.000Z");
   } finally {
     delete require.cache[operationsPath];
